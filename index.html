@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1d4d2c">
-  <title>Barokah · Tutup Kasir</title>
+  <title>Kantin Barokah · Tutup Kasir</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,6 +26,7 @@
     <div class="login-card">
       <div class="brand-hero">
         <img src="logo.svg" class="brand-logo" alt="">
+        <p class="brand-kicker">KANTIN</p>
         <h1 class="brand-name">BAROKAH</h1>
         <p class="brand-sub">Tutup Kasir Harian</p>
       </div>
@@ -49,7 +50,7 @@
       </form>
 
       <button type="button" id="btnForgot" class="link-btn">Lupa password?</button>
-      <p class="login-footer">© 2026 Barokah</p>
+      <p class="login-footer">© 2026 Kantin Barokah</p>
     </div>
   </section>
 
@@ -58,7 +59,7 @@
 
     <header class="app-header">
       <button id="btnProfile" class="hdr-avatar" aria-label="Profil saya"></button>
-      <div class="brand-top">BAROKAH</div>
+      <div class="brand-top"><span class="bt-kicker">KANTIN</span><span class="bt-name">BAROKAH</span></div>
       <span id="hdrRole" class="role-pill"></span>
     </header>
 
@@ -89,12 +90,14 @@
         </section>
 
         <div class="stat-grid">
-          <div class="stat dark tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Laba Kotor (Omset)</span><span class="stat-val" id="cardGross">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="box"></span><span class="stat-lbl">HPP Produk</span><span class="stat-val" id="cardHpp">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="wallet"></span><span class="stat-lbl">Pengeluaran Toko</span><span class="stat-val" id="cardOpex">Rp 0</span></div>
-          <div class="stat dark tap"><span class="stat-ic" data-i="chart"></span><span class="stat-lbl">Laba Bersih</span><span class="stat-val" id="cardNet">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="check"></span><span class="stat-lbl">Selisih Kas</span><span class="stat-val" id="cardDiff">Rp 0</span></div>
-          <div class="stat dark tap"><span class="stat-ic" data-i="user"></span><span class="stat-lbl">Ambil Owner</span><span class="stat-val" id="cardPrive">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Omset Tercatat</span><span class="stat-val" id="cardGross">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="box"></span><span class="stat-lbl">Omset Seharusnya (stok)</span><span class="stat-val" id="cardExpected">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="alert"></span><span class="stat-lbl">Selisih Omset</span><span class="stat-val" id="cardLeak">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="tag"></span><span class="stat-lbl">HPP Terjual</span><span class="stat-val" id="cardHpp">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="wallet"></span><span class="stat-lbl">Biaya Operasional</span><span class="stat-val" id="cardOpex">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="chart"></span><span class="stat-lbl">Laba Bersih</span><span class="stat-val" id="cardNet">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="check"></span><span class="stat-lbl">Selisih Kas Laci</span><span class="stat-val" id="cardDiff">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Nilai Stok (HPP)</span><span class="stat-val" id="cardStock">Rp 0</span></div>
         </div>
 
         <h3 class="sec-title">Perlu diperiksa</h3>
@@ -159,12 +162,13 @@
           </div>
 
           <div class="panel pad">
-            <div class="sec-hd"><span data-i="box"></span><h4>Produk terjual</h4></div>
+            <div class="sec-hd"><span data-i="box"></span><h4>Stok produk</h4></div>
+            <p class="hint">Stok awal sudah terisi otomatis. Isi <b>Masuk</b> bila ada barang baru dibeli hari ini, lalu isi <b>Sisa</b> dari hasil hitung fisik.</p>
             <div id="productPicker" class="picker"></div>
           </div>
 
           <div class="panel pad">
-            <div class="sec-hd"><span data-i="tag"></span><h4>Pengeluaran toko</h4></div>
+            <div class="sec-hd"><span data-i="tag"></span><h4>Pengeluaran &amp; belanja</h4></div>
             <div id="opexList"></div>
             <button type="button" class="btn-outline" id="btnAddOpex"><span data-i="plus"></span>Tambah belanja</button>
           </div>
@@ -183,13 +187,9 @@
 
           <div class="panel pad">
             <div class="sec-hd"><span data-i="camera"></span><h4>Foto nota &amp; bukti belanja</h4></div>
-            <label class="dropzone" for="proofInput">
-              <span class="dz-ic" data-i="camera"></span>
-              <strong>Ambil atau pilih foto</strong>
-              <small id="photoHint">Ketuk untuk mengambil atau memilih foto nota</small>
-            </label>
             <input type="file" id="proofInput" accept="image/*" multiple class="hidden">
             <div id="photoGrid" class="thumbs"></div>
+            <p id="photoHint" class="hint"></p>
           </div>
 
           <div class="panel pad">
@@ -209,7 +209,7 @@
           <h3 class="sec-title">Daftar produk</h3>
           <button id="btnAddProduct" class="chip-btn"><span data-i="plus"></span>Produk</button>
         </div>
-        <p class="hint">Harga jual dan HPP untuk menghitung laba. HPP hanya terlihat oleh Owner.</p>
+        <p class="hint">Isi harga jual, HPP per unit, dan stok. Stok diperbarui otomatis dari laporan kasir. HPP hanya terlihat oleh Owner.</p>
         <div id="productList" class="list"></div>
       </div>
 

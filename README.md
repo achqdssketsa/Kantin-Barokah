@@ -55,3 +55,44 @@ Setiap mengubah `www/`, jalankan `npm run sync` lalu build ulang.
 - Laporan lama (sebelum v2) tetap tampil. Untuk laporan lama, HPP dan kas dihitung dengan perkiraan.
 - Lupa password: owner mereset dari Firebase Console.
 - Backup: Pengaturan → Backup data (JSON). Simpan rutin ke Drive atau WhatsApp.
+
+---
+
+# Pembaruan v2.1
+
+## A. Perbaiki izin Apps Script (upload foto gagal)
+Penyebab: proyek Apps Script belum mendeklarasikan izin `script.external_request` dan Drive. File `apps-script/appsscript.json` berisi deklarasi itu.
+
+1. Buka project Apps Script (script.google.com), isi `Code.gs` tetap seperti sebelumnya.
+2. Klik ikon **Project Settings** (roda gigi di kiri) → centang **Show "appsscript.json" manifest file in editor**.
+3. Buka file `appsscript.json` yang muncul di editor, hapus isinya, lalu tempel isi `apps-script/appsscript.json`. Simpan.
+4. Pilih fungsi **authorizeScopes** → **Run**. Setujui semua izin (Drive dan akses eksternal). Jika muncul "Google belum memverifikasi aplikasi", pilih **Advanced → Go to ... (unsafe)**. Ini aman karena script milik Anda sendiri.
+5. **Deploy → Manage deployments → Edit → Version: New version → Deploy.** URL tetap sama.
+6. Tes: buka URL `/exec` di browser (harus `"version":2`), lalu di aplikasi: Pengaturan → Tentang → **Tes koneksi Drive**.
+
+Catatan: URL library (`/macros/library/...`) **tidak dipakai** aplikasi. Yang dipakai hanya URL Aplikasi web (`/macros/s/.../exec`).
+
+## B. Batasi kunci admin & API key (keamanan)
+1. Hapus key service account:
+   - Google Cloud Console → IAM & Admin → Service Accounts → `firebase-adminsdk-fbsvc@kantin-barokah-7870a.iam.gserviceaccount.com` → tab **Keys**.
+   - Hapus key dengan ID **`c85d6eb642a4b53e46667634a8830e2fa137e0ef`**. Hapus juga file JSON-nya dari komputer.
+2. Batasi API key browser Firebase:
+   - Google Cloud Console → APIs & Services → Credentials → pilih key bernama **Browser key (auto created by Firebase)** atau key yang berawalan `AIzaSyBn7...`.
+   - **Application restrictions** → pilih **Websites** → tambahkan:
+     - `https://kantinbarokah.vercel.app/*`
+     - `https://localhost/*` (diperlukan agar APK Android tetap bisa login)
+   - **API restrictions** → pilih **Restrict key** → centang: Identity Toolkit API, Cloud Firestore API, Token Service API (dan Cloud Firestore API untuk REST). Simpan.
+   - Setelah itu tes login di web dan APK. Jika ada yang gagal, tambahkan API yang diblokir dari pesan error di Console.
+
+## C. Alur stok (baru)
+- Owner mengisi setiap produk: **harga jual, HPP per unit, dan stok awal** (hitung fisik).
+- Kasir setiap hari: isi **Masuk** (barang baru dibeli, jika ada) dan **Sisa** (hasil hitung fisik). Kasir tidak melihat omset yang seharusnya.
+- Sistem: **terjual = awal + masuk − sisa**. Lalu:
+  - **Omset seharusnya** = terjual × harga jual
+  - **Selisih omset** = omset tercatat − omset seharusnya. Nilai negatif berarti ada potensi bocor.
+  - **HPP terjual** = terjual × HPP
+- **Belanja stok** (bahan atau barang dagang) dicatat sebagai pengeluaran jenis "Belanja stok". Ini bukan biaya, karena nilainya sudah masuk stok dan dihitung saat terjual. Jadi tidak terhitung dua kali.
+- **Biaya operasional** (gas, listrik, dll.) dihitung sebagai biaya.
+- **Laba bersih** = omset tercatat − HPP terjual − biaya operasional.
+- **Selisih kas laci** = uang fisik − seharusnya. Seharusnya = modal + tunai − pengeluaran dari laci − pengambilan owner.
+- Owner bisa mengedit laporan (termasuk stok sisa). Jika laporan itu laporan terbaru, stok produk ikut diperbarui.

@@ -372,3 +372,86 @@ body.is-owner .nav-btn.owner-only { display: flex !important; }
 .viewer { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.92); display: none; align-items: center; justify-content: center; padding: 16px; }
 .viewer.show { display: flex; animation: fadeUp .25s ease both; }
 .viewer img { max-width: 100%; max-height: 90vh; border-radius: 14px; }
+
+/* ================= PEMBARUAN v2.1 ================= */
+
+/* Reset tombol: hilangkan border default browser */
+button { border: 0; background: none; font: inherit; color: inherit; padding: 0; }
+
+/* Input login: teks tidak tertutup ikon, ikon tidak hilang saat mengetik */
+.field-wrap input {
+  flex: 1; width: 100%; height: 100%;
+  padding: 0 46px !important; border: 0 !important; outline: 0;
+  background: transparent !important; box-shadow: none !important;
+  color: var(--cream); font-size: 15px;
+}
+.field-wrap .fi, .field-wrap .fi-btn { z-index: 2; }
+.field-wrap:focus-within .fi { color: #ffd77a; }
+.sheet .field-wrap input { color: var(--ink); }
+
+/* Nama: KANTIN di atas, BAROKAH di bawah */
+.brand-top { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.bt-kicker { font-size: 10px; font-weight: 600; letter-spacing: .44em; padding-left: .44em; color: var(--gold-2); }
+.bt-name { font-size: 18px; font-weight: 700; letter-spacing: .26em; padding-left: .26em; color: var(--green); line-height: 1.1; }
+.brand-kicker { text-align: center; font-size: 12px; font-weight: 600; letter-spacing: .5em; padding-left: .5em; color: var(--gold); margin-top: 16px; }
+.brand-hero .brand-name { margin-top: 4px; }
+
+/* Gestur menu: ikon membesar & warna lebih kontras (tanpa riak) */
+.nav-btn, .menu-item { transform: none !important; }
+.nav-btn > span, .menu-item .mi-ic {
+  transition: transform .22s cubic-bezier(.2,.9,.3,1.4), background .2s ease, color .2s ease;
+}
+.nav-btn:active > span {
+  transform: scale(1.35);
+  background: #f2c75c; color: var(--green-2);
+  box-shadow: 0 6px 14px rgba(242,199,92,.45);
+}
+.menu-item:active { background: #fff3cc; border-color: var(--gold); }
+.menu-item:active .mi-ic {
+  transform: scale(1.3);
+  background: #f2c75c; color: var(--green-2);
+  box-shadow: 0 6px 14px rgba(242,199,92,.45);
+}
+.menu-item:active .mi-txt strong { color: var(--green); }
+.nav-btn.active > span { background: rgba(242,199,92,.22); color: #ffd77a; }
+.nav-btn.active { color: #ffd77a; }
+.nav-btn:not(.active) { color: #c9d6b8; }
+
+/* Kartu stat merah saat selisih omset negatif */
+.stat.alert { background: linear-gradient(160deg, #b3261e, #6e120c) !important; color: #ffe3df !important; }
+
+/* Foto nota: grid sejajar, tile tambah di sisi kanan/bawah */
+.thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.thumbs:empty { display: grid; }
+.thumb-add {
+  aspect-ratio: 1; border-radius: 16px; border: 2px dashed var(--gold); background: #fffaef;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  color: var(--green); cursor: pointer; text-align: center; padding: 6px;
+  transition: transform .15s ease, background .2s ease;
+}
+.thumb-add:active { transform: scale(.95); background: #f3e3b5; }
+.thumb-add small { font-size: 11px; font-weight: 600; line-height: 1.2; }
+.ta-ic { width: 30px; height: 30px; color: var(--gold-2); }
+.ta-ic svg { width: 100%; height: 100%; }
+.thumb-card { aspect-ratio: 1; }
+#photoHint { margin-top: 8px; }
+
+/* Stok produk (kasir & edit) */
+.stock-head, .stock-row { display: grid; grid-template-columns: 1.7fr .7fr .8fr .8fr; gap: 8px; align-items: center; }
+.stock-head { font-size: 11px; color: var(--muted); font-weight: 600; padding: 0 4px 6px; text-transform: uppercase; letter-spacing: .04em; }
+.stock-head .c { text-align: center; }
+.stock-row { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 8px; }
+.sr-name strong { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.25; }
+.sr-name small { color: var(--muted); font-size: 11px; }
+.sr-awal { text-align: center; font-weight: 700; color: var(--green); font-size: 14px; }
+.stock-row input {
+  height: 40px; width: 100%; padding: 0 6px; text-align: center; font-weight: 600; font-size: 14px;
+  border-radius: 12px; border: 1.5px solid var(--line); background: #fffdf6;
+}
+.stock-row input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,169,74,.2); }
+.stock-row input::placeholder { color: #bfb391; font-weight: 400; }
+
+/* Pengeluaran: jenis + dari laci */
+.opex-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.opex-kind { height: 38px; width: auto; flex: 1; min-width: 150px; padding: 0 10px; border-radius: 12px; font-size: 13px; border: 1.5px solid var(--line); background: #fff; }
+.opex-meta .switch-row { margin: 0; }

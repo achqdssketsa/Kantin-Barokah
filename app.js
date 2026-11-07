@@ -14,7 +14,7 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbyunLWcCJpVO1sgJmWoY3tiHvkIEf8SbUUN1Uby3PGmtN4R0MGmjHlOaQ-1bLjRD4Y/exec';
 const PHOTO_SIDE = 1024, AVATAR_SIDE = 512, PHOTO_QUALITY = 0.7;
 const C = { closings: 'daily_closings', users: 'users', products: 'products', costs: 'product_costs', withdrawals: 'owner_withdrawals' };
@@ -86,7 +86,6 @@ let withdrawals = [];       // pengambilan owner
 let allUsers = [];
 let pendingPhotos = [];     // { blob, url }
 let pendingAvatar = null;   // blob
-let qtyState = {};          // productId -> qty
 let unsubs = [];
 const charts = {};
 
@@ -94,8 +93,9 @@ const charts = {};
 // EFEK GESTUR: riak saat disentuh + getaran ringan
 // ============================================================
 document.addEventListener('pointerdown', (e) => {
-  const t = e.target.closest('button, .tap, .dropzone');
-  if (!t || t.disabled) return;
+  const t = e.target.closest('button, .tap');
+  // Menu bawah & pengaturan memakai gestur ikon membesar, bukan riak
+  if (!t || t.disabled || t.classList.contains('nav-btn') || t.classList.contains('menu-item')) return;
   const r = t.getBoundingClientRect();
   const size = Math.max(r.width, r.height);
   const span = document.createElement('span');
@@ -322,18 +322,33 @@ function withdrawalsByDate() {
 // Kas seharusnya = modal + tunai − pengeluaran dari laci − pengambilan owner
 // HPP = qty × HPP produk; Laba bersih = omset − HPP − pengeluaran toko
 function calcClosing(c, wdMap) {
+  const items = c.items || [];
+  const stockBased = items.some((i) => i.akhir !== undefined);
+  let soldRev = 0, soldHpp = 0, negative = false;
+  const detail = items.map((i) => {
+    // Stok terjual = stok awal + barang masuk − sisa hitung fisik
+    const terjual = stockBased ? num(i.awal) + num(i.masuk) - num(i.akhir) : num(i.qty);
+    if (terjual < 0) negative = true;
+    const rev = terjual * num(i.price);
+    const hpp = terjual * num(costs[i.id]);
+    soldRev += rev;
+    soldHpp += hpp;
+    return { ...i, terjual, rev, hpp };
+  });
   const opexTotal = num(c.opexTotal ?? c.totalOpex);
-  const opexDrawer = c.opexDrawer != null ? num(c.opexDrawer) : opexTotal; // data lama
+  const opexBiaya = c.opexBiaya != null ? num(c.opexBiaya) : opexTotal; // data lama dianggap biaya
+  const opexDrawer = c.opexDrawer != null ? num(c.opexDrawer) : opexTotal;
   const gross = num(c.grossRevenue) || num(c.cashRevenue) + num(c.qrisRevenue);
   const expected = num(c.startingCash) + num(c.cashRevenue) - opexDrawer - (wdMap[c.date] || 0);
   const diff = num(c.actualCash) - expected;
-  const items = c.items || [];
-  const hpp = items.reduce((s, i) => s + num(i.qty) * num(costs[i.id]), 0);
-  const itemsRevenue = items.reduce((s, i) => s + num(i.qty) * num(i.price), 0);
-  const unrecorded = c.items ? gross - itemsRevenue : 0; // selisih omset vs produk
-  const net = gross - hpp - opexTotal;
-  return { gross, expected, diff, hpp, itemsRevenue, unrecorded, net, opexTotal };
+  const omsetDiff = stockBased ? gross - soldRev : 0;   // + lebih, − kurang (potensi bocor)
+  const net = gross - soldHpp - opexBiaya;               // belanja stok bukan biaya (sudah jadi stok)
+  return {
+    gross, expected, diff, hpp: soldHpp, soldRev, omsetDiff, negative, net,
+    opexTotal, opexBiaya, opexStok: opexTotal - opexBiaya, detail, stockBased
+  };
 }
+
 
 // Bucket grafik: per hari (≤ 31 hari) atau per bulan
 function buildBuckets(from, to) {
@@ -366,48 +381,52 @@ const inRange = (list, from, to) => list.filter((x) => x.date >= from && x.date 
 // ============================================================
 // FORM TUTUP KASIR (kasir)
 // ============================================================
+function collectStock() {
+  const m = {};
+  document.querySelectorAll('.stock-row').forEach((r) => {
+    m[r.dataset.id] = {
+      masuk: r.querySelector('.sr-masuk').value,
+      sisa: r.querySelector('.sr-sisa').value
+    };
+  });
+  return m;
+}
+
 function renderProductPicker() {
   const el = $('productPicker');
   if (!el) return;
+  const keep = collectStock();
   const active = products.filter((p) => p.active !== false);
   if (!active.length) {
     el.innerHTML = `<p class="hint center">Belum ada produk. Owner perlu menambahkannya di menu Produk.</p>`;
     return;
   }
-  el.innerHTML = active.map((p) => {
-    const q = qtyState[p.id] || 0;
-    return `<div class="pick ${q ? 'on' : ''}" data-id="${p.id}">
-      <div class="pick-info"><strong>${esc(p.name)}</strong><small>${rp(p.price)}</small></div>
-      <div class="stepper">
-        <button type="button" class="step" data-step="-1" aria-label="Kurangi">${ic('minus')}</button>
-        <span class="qty">${q}</span>
-        <button type="button" class="step" data-step="1" aria-label="Tambah">${ic('plus')}</button>
-      </div>
-    </div>`;
-  }).join('');
+  el.innerHTML = `<div class="stock-head"><span>Produk</span><span class="c">Awal</span><span class="c">Masuk</span><span class="c">Sisa</span></div>`
+    + active.map((p) => `
+      <div class="stock-row" data-id="${p.id}">
+        <div class="sr-name"><strong>${esc(p.name)}</strong><small>${esc(p.category || '')}</small></div>
+        <span class="sr-awal">${num(p.stock)}</span>
+        <input type="number" class="sr-masuk" inputmode="numeric" min="0" placeholder="0">
+        <input type="number" class="sr-sisa" inputmode="numeric" min="0" placeholder="0">
+      </div>`).join('');
+  // Pertahankan isian yang sudah diketik saat data produk berubah
+  el.querySelectorAll('.stock-row').forEach((r) => {
+    const k = keep[r.dataset.id];
+    if (!k) return;
+    r.querySelector('.sr-masuk').value = k.masuk;
+    r.querySelector('.sr-sisa').value = k.sisa;
+  });
 }
-$('productPicker').addEventListener('click', (e) => {
-  const b = e.target.closest('.step');
-  if (!b) return;
-  const id = b.closest('.pick').dataset.id;
-  qtyState[id] = Math.max(0, (qtyState[id] || 0) + Number(b.dataset.step));
-  renderProductPicker();
-});
 
-function addOpexRow(desc = '', amount = '', drawer = true) {
-  const row = document.createElement('div');
-  row.className = 'opex-row';
-  row.innerHTML = `
-    <div class="opex-top">
-      <input type="text" class="opex-desc" placeholder="Nama belanja (mis. Gas 3kg)" value="${esc(desc)}">
-      <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric" value="${amount}">
-      <button type="button" class="icon-btn" aria-label="Hapus">${ic('x')}</button>
-    </div>
-    <label class="switch-row"><input type="checkbox" class="opex-drawer" ${drawer ? 'checked' : ''}><span class="switch"></span>Dibayar dari uang laci</label>`;
-  row.querySelector('.icon-btn').addEventListener('click', () => row.remove());
-  $('opexList').appendChild(row);
+$('opexList').addEventListener('click', (e) => {
+  const b = e.target.closest('.icon-btn');
+  if (b) b.closest('.opex-row').remove();
+});
+function addOpexRow() {
+  $('opexList').insertAdjacentHTML('beforeend', opexEditHtml());
 }
 $('btnAddOpex').addEventListener('click', () => addOpexRow());
+
 
 $('proofInput').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files);
@@ -425,20 +444,27 @@ $('proofInput').addEventListener('change', async (e) => {
 });
 
 function renderPhotos() {
-  $('photoGrid').innerHTML = pendingPhotos.map((p, i) => `
+  const tiles = pendingPhotos.map((p, i) => `
     <div class="thumb-card">
       <img src="${p.url}" alt="Foto ${i + 1}">
       <span class="size">${fmtSize(p.blob.size)}</span>
       <button type="button" class="thumb-x" data-i="${i}" aria-label="Hapus foto">${ic('x')}</button>
     </div>`).join('');
+  const add = `<label class="thumb-add" for="proofInput">
+      <span class="ta-ic">${ic('camera')}</span>
+      <small>${pendingPhotos.length ? 'Tambah foto' : 'Ambil / pilih foto'}</small>
+    </label>`;
+  $('photoGrid').innerHTML = tiles + add;
+
   if (!pendingPhotos.length) {
-    $('photoHint').textContent = 'Ketuk untuk mengambil atau memilih foto nota';
+    $('photoHint').textContent = 'Foto nota atau bukti belanja. Otomatis dikompres sebelum dikirim.';
   } else {
     const before = pendingPhotos.reduce((s, p) => s + p.orig, 0);
     const after = pendingPhotos.reduce((s, p) => s + p.blob.size, 0);
     $('photoHint').textContent = `${pendingPhotos.length} foto · ${fmtSize(before)} → ${fmtSize(after)} setelah dikompres`;
   }
 }
+
 $('photoGrid').addEventListener('click', (e) => {
   const b = e.target.closest('.thumb-x');
   if (!b) return;
@@ -448,32 +474,55 @@ $('photoGrid').addEventListener('click', (e) => {
 
 function readClosingForm() {
   const opex = [];
-  document.querySelectorAll('.opex-row').forEach((r) => {
+  document.querySelectorAll('#opexList .opex-row').forEach((r) => {
     const desc = r.querySelector('.opex-desc').value.trim();
     const amount = num(r.querySelector('.opex-amount').value);
     const fromDrawer = r.querySelector('.opex-drawer').checked;
-    if (desc || amount) opex.push({ desc, amount, fromDrawer });
+    const kind = r.querySelector('.opex-kind').value;
+    if (desc || amount) opex.push({ desc, amount, fromDrawer, kind });
   });
-  const items = products
-    .filter((p) => (qtyState[p.id] || 0) > 0)
-    .map((p) => ({ id: p.id, name: p.name, qty: qtyState[p.id], price: num(p.price) }));
+
+  const items = [];
+  let missing = 0;
+  document.querySelectorAll('.stock-row').forEach((r) => {
+    const p = products.find((x) => x.id === r.dataset.id);
+    if (!p) return;
+    const sisaRaw = r.querySelector('.sr-sisa').value;
+    if (sisaRaw === '') missing++;
+    items.push({
+      id: p.id,
+      name: p.name,
+      price: num(p.price),
+      awal: num(p.stock),
+      masuk: num(r.querySelector('.sr-masuk').value),
+      akhir: num(sisaRaw)
+    });
+  });
+
   const cashRevenue = num($('cashRevenue').value);
   const qrisRevenue = num($('qrisRevenue').value);
+  const sumIf = (fn) => opex.filter(fn).reduce((s, o) => s + o.amount, 0);
   return {
     date: todayStr(),
     startingCash: num($('startingCash').value),
     cashRevenue, qrisRevenue,
     grossRevenue: cashRevenue + qrisRevenue,
-    items,
-    itemsRevenue: items.reduce((s, i) => s + i.qty * i.price, 0),
+    items, missing,
     opex,
-    opexTotal: opex.reduce((s, o) => s + o.amount, 0),
-    opexDrawer: opex.filter((o) => o.fromDrawer).reduce((s, o) => s + o.amount, 0),
+    opexTotal: sumIf(() => true),
+    opexDrawer: sumIf((o) => o.fromDrawer),
+    opexBiaya: sumIf((o) => o.kind !== 'stok'),
+    opexStok: sumIf((o) => o.kind === 'stok'),
     actualCash: num($('actualCash').value),
-    checklist: { counted: $('chkCounted').checked, photos: $('chkPhotos').checked, stock: $('chkStock').checked },
+    checklist: {
+      counted: $('chkCounted').checked,
+      photos: $('chkPhotos').checked,
+      stock: $('chkStock').checked
+    },
     notes: $('notes').value.trim()
   };
 }
+
 
 function setBusy(on, text = 'Kirim tutup kasir') {
   const b = $('btnSubmit');
@@ -484,12 +533,12 @@ function setBusy(on, text = 'Kirim tutup kasir') {
 function resetClosingForm() {
   $('formClosing').reset();
   $('opexList').innerHTML = '';
-  qtyState = {};
   pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
   pendingPhotos = [];
   renderPhotos();
   renderProductPicker();
 }
+
 
 $('formClosing').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -497,37 +546,44 @@ $('formClosing').addEventListener('submit', async (e) => {
   if (!$('startingCash').value) return toast('Isi modal awal di laci');
   if (!$('cashRevenue').value || !$('qrisRevenue').value) return toast('Isi penjualan tunai dan QRIS (boleh 0)');
   if (!$('actualCash').value) return toast('Hitung uang fisik di laci');
+  if (!raw.items.length) return toast('Belum ada produk. Owner perlu menambahkannya di menu Produk.');
+  if (raw.missing) return toast(`Isi stok sisa untuk ${raw.missing} produk`);
   if (!Object.values(raw.checklist).every(Boolean)) return toast('Lengkapi checklist akhir hari');
-  if (!raw.items.length && !confirm('Belum ada produk yang dicatat terjual. Tetap kirim?')) return;
   if (!pendingPhotos.length && !confirm('Belum ada foto nota. Tetap kirim?')) return;
 
+  const { missing, ...data } = raw;
   setBusy(true, 'Mengunggah...');
   try {
     const proofImages = [];
     const proofFileIds = [];
     for (let i = 0; i < pendingPhotos.length; i++) {
       setBusy(true, `Mengunggah foto ${i + 1}/${pendingPhotos.length}...`);
-      const r = await uploadToDrive(pendingPhotos[i].blob, `${profile.uid}_${raw.date}_${Date.now()}_${i}.jpg`);
+      const r = await uploadToDrive(pendingPhotos[i].blob, `${profile.uid}_${data.date}_${Date.now()}_${i}.jpg`);
       proofImages.push(r.url);
       proofFileIds.push(r.fileId);
     }
     setBusy(true, 'Menyimpan laporan...');
-    // ID dokumen = tanggal → hanya satu laporan per hari (diatur di aturan Firestore)
-    await db.collection(C.closings).doc(raw.date).set({
-      ...raw,
+
+    // Satu batch: simpan laporan + perbarui stok produk ke sisa hitung fisik.
+    // Jika laporan hari ini sudah ada, seluruh batch gagal (tidak ada stok yang berubah).
+    const batch = db.batch();
+    batch.set(db.collection(C.closings).doc(data.date), {
+      ...data,
       kasirName: profile.name,
       submittedBy: profile.uid,
       proofImages,
       proofFileIds,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    data.items.forEach((i) => batch.update(db.collection(C.products).doc(i.id), { stock: i.akhir }));
+    await batch.commit();
+
     resetClosingForm();
-    $('startingCash').value = ''; $('cashRevenue').value = ''; $('qrisRevenue').value = ''; $('actualCash').value = '';
     openSheet(`
       <div class="empty" style="padding-top:18px">
         ${ic('check')}
         <h3 class="sheet-title">Laporan terkirim</h3>
-        <p class="hint">Terima kasih. Laporan hari ini sudah tersimpan.</p>
+        <p class="hint">Terima kasih. Laporan dan stok hari ini sudah tersimpan.</p>
       </div>
       <button class="btn-primary" data-close>Tutup</button>`);
   } catch (err) {
@@ -543,8 +599,6 @@ $('formClosing').addEventListener('submit', async (e) => {
 });
 
 // ============================================================
-// PRODUK (owner)
-// ============================================================
 function renderProductsTab() {
   const el = $('productList');
   if (!el || profile?.role !== 'owner') return;
@@ -554,14 +608,20 @@ function renderProductsTab() {
   }
   el.innerHTML = products.map((p) => {
     const hpp = num(costs[p.id]);
+    const stock = num(p.stock);
     const margin = p.price ? Math.round(((num(p.price) - hpp) / num(p.price)) * 100) : 0;
     return `<div class="prod-card tap ${p.active === false ? 'off' : ''}" data-id="${p.id}">
       <div class="prod-ic">${ic('tag')}</div>
-      <div class="prod-main"><strong>${esc(p.name)}</strong><small>${esc(p.category || 'Umum')} · HPP ${rp(hpp)}</small></div>
+      <div class="prod-main">
+        <strong>${esc(p.name)}</strong>
+        <small>${esc(p.category || 'Umum')} · HPP ${rp(hpp)} · Stok ${stock}</small>
+        <small>Nilai stok ${rp(stock * hpp)}</small>
+      </div>
       <div class="prod-price"><strong>${rp(p.price)}</strong><span class="chip ${margin >= 0 ? 'ok' : 'no'}">Margin ${margin}%</span></div>
     </div>`;
   }).join('');
 }
+
 $('productList').addEventListener('click', (e) => {
   const card = e.target.closest('.prod-card');
   if (card) openProductSheet(card.dataset.id);
@@ -576,18 +636,21 @@ function openProductSheet(id) {
     <div class="field"><label for="pCat">Kategori</label><input type="text" id="pCat" value="${esc(p?.category || '')}" placeholder="mis. Makanan"></div>
     <div class="row2">
       <div class="field"><label for="pPrice">Harga jual</label><input type="number" id="pPrice" inputmode="numeric" min="0" value="${p ? num(p.price) : ''}"></div>
-      <div class="field"><label for="pHpp">HPP (modal/porsi)</label><input type="number" id="pHpp" inputmode="numeric" min="0" value="${p ? num(costs[p.id]) : ''}"></div>
+      <div class="field"><label for="pHpp">HPP per unit</label><input type="number" id="pHpp" inputmode="numeric" min="0" value="${p ? num(costs[p.id]) : ''}"></div>
     </div>
+    <div class="field"><label for="pStock">${p ? 'Stok sekarang (koreksi)' : 'Stok awal (hitung fisik)'}</label>
+      <input type="number" id="pStock" inputmode="numeric" min="0" value="${p ? num(p.stock) : ''}"></div>
     <p class="hint" id="pMargin"></p>
     <button class="btn-primary" id="pSave">${ic('check')}Simpan</button>
     ${p ? `<button class="btn-ghost" id="pToggle">${p.active === false ? 'Aktifkan produk' : 'Nonaktifkan produk'}</button>` : ''}
   `, () => {
     const preview = () => {
-      const price = num($('pPrice').value), hpp = num($('pHpp').value);
-      $('pMargin').textContent = price ? `Laba per porsi ${rp(price - hpp)} (margin ${Math.round(((price - hpp) / price) * 100)}%)` : '';
+      const price = num($('pPrice').value), hpp = num($('pHpp').value), stock = num($('pStock').value);
+      $('pMargin').textContent = price
+        ? `Laba per unit ${rp(price - hpp)} (margin ${Math.round(((price - hpp) / price) * 100)}%) · Nilai stok ${rp(stock * hpp)}`
+        : '';
     };
-    $('pPrice').addEventListener('input', preview);
-    $('pHpp').addEventListener('input', preview);
+    ['pPrice', 'pHpp', 'pStock'].forEach((x) => $(x).addEventListener('input', preview));
     preview();
 
     $('pSave').onclick = async () => {
@@ -599,6 +662,7 @@ function openProductSheet(id) {
           name,
           category: $('pCat').value.trim() || 'Umum',
           price: num($('pPrice').value),
+          stock: num($('pStock').value),
           active: p ? p.active !== false : true
         }, { merge: true });
         await db.collection(C.costs).doc(ref.id).set({ hpp: num($('pHpp').value) });
@@ -614,9 +678,12 @@ function openProductSheet(id) {
   });
 }
 
+
 // ============================================================
 // BERANDA (owner)
 // ============================================================
+const setText = (id, t) => { $(id).textContent = t; };
+
 function renderDashboard() {
   if (profile?.role !== 'owner') return;
   const { from, to } = getRange();
@@ -629,34 +696,44 @@ function renderDashboard() {
   const gross = T((r) => r.k.gross);
   const cash = T((r) => num(r.c.cashRevenue));
   const qris = T((r) => num(r.c.qrisRevenue));
-
-  $('sumTotal').textContent = rp(gross);
-  $('sumCash').textContent = rp(cash);
-  $('sumQris').textContent = rp(qris);
-  $('cardGross').textContent = rp(gross);
-  $('cardHpp').textContent = rp(T((r) => r.k.hpp));
-  $('cardOpex').textContent = rp(T((r) => r.k.opexTotal));
-  $('cardNet').textContent = rp(T((r) => r.k.net));
+  const omsetDiff = T((r) => r.k.omsetDiff);
   const diff = T((r) => r.k.diff);
-  $('cardDiff').textContent = signedRp(diff);
+
+  setText('sumTotal', rp(gross));
+  setText('sumCash', rp(cash));
+  setText('sumQris', rp(qris));
+  setText('cardGross', rp(gross));
+  setText('cardExpected', rp(T((r) => r.k.soldRev)));
+  setText('cardLeak', signedRp(omsetDiff));
+  $('cardLeak').parentElement.classList.toggle('alert', omsetDiff < 0);
+  setText('cardHpp', rp(T((r) => r.k.hpp)));
+  setText('cardOpex', rp(T((r) => r.k.opexBiaya)));
+  setText('cardNet', rp(T((r) => r.k.net)));
+  setText('cardDiff', signedRp(diff));
   $('cardDiff').className = 'stat-val ' + (diff < 0 ? 'neg' : diff > 0 ? 'pos' : '');
-  $('cardPrive').textContent = rp(wd.reduce((s, w) => s + num(w.amount), 0));
+  setText('cardStock', rp(products
+    .filter((p) => p.active !== false)
+    .reduce((s, p) => s + num(p.stock) * num(costs[p.id]), 0)));
 
   renderAlerts(rows);
   renderPayment(gross, cash, qris);
-  renderTopProducts(list);
+  renderTopProducts(rows);
   renderTrend(rows, from, to);
-  renderDistribution(list);
+  renderDistribution(rows);
   renderWithdrawals(wd);
   renderClosingList(rows);
 }
 
+
 function renderAlerts(rows) {
-  const bad = rows.filter(({ k }) => k.diff !== 0 || k.unrecorded !== 0);
+  const bad = rows.filter(({ k }) => k.diff !== 0 || k.omsetDiff !== 0 || k.negative);
   $('alertList').innerHTML = bad.length ? bad.map(({ c, k }) => {
     const parts = [];
-    if (k.diff) parts.push(k.diff < 0 ? `Kas kurang ${rp(-k.diff)}` : `Kas lebih ${rp(k.diff)}`);
-    if (k.unrecorded) parts.push(`Omset belum tercatat per produk ${rp(k.unrecorded)}`);
+    if (k.diff) parts.push(k.diff < 0 ? `Kas laci kurang ${rp(-k.diff)}` : `Kas laci lebih ${rp(k.diff)}`);
+    if (k.omsetDiff) parts.push(k.omsetDiff < 0
+      ? `Omset kurang ${rp(-k.omsetDiff)} dari stok terjual`
+      : `Omset lebih ${rp(k.omsetDiff)} dari stok terjual`);
+    if (k.negative) parts.push('Ada stok sisa melebihi stok yang tersedia');
     return `<div class="alert-item tap" data-id="${c.id}">
       <span class="alert-ic">${ic('alert')}</span>
       <div><strong>${fmtDate(c.date)} · ${esc(c.kasirName || '-')}</strong><small>${parts.join(' · ')}</small></div>
@@ -664,6 +741,7 @@ function renderAlerts(rows) {
     </div>`;
   }).join('') : `<div class="ok-banner">${ic('check')}Semua laporan dalam periode ini sudah sesuai</div>`;
 }
+
 
 function renderPayment(gross, cash, qris) {
   const pct = (v) => gross ? ((v / gross) * 100).toFixed(1) + '%' : '0%';
@@ -673,20 +751,21 @@ function renderPayment(gross, cash, qris) {
     <tr class="total"><td>Total</td><td class="r">${rp(gross)}</td><td class="r">${gross ? '100%' : '0%'}</td></tr>`;
 }
 
-function renderTopProducts(list) {
+function renderTopProducts(rows) {
   const agg = {};
-  list.forEach((c) => (c.items || []).forEach((i) => {
-    const a = agg[i.id] || (agg[i.id] = { name: i.name, qty: 0, rev: 0, hpp: 0 });
-    a.qty += num(i.qty);
-    a.rev += num(i.qty) * num(i.price);
-    a.hpp += num(i.qty) * num(costs[i.id]);
+  rows.forEach(({ k }) => k.detail.forEach((d) => {
+    const a = agg[d.id] || (agg[d.id] = { name: d.name, qty: 0, rev: 0, hpp: 0 });
+    a.qty += d.terjual;
+    a.rev += d.rev;
+    a.hpp += d.hpp;
   }));
-  const rows = Object.values(agg).sort((a, b) => b.rev - a.rev).slice(0, 8);
-  $('topProducts').innerHTML = rows.length ? rows.map((r) => `
+  const list = Object.values(agg).sort((a, b) => b.rev - a.rev).slice(0, 8);
+  $('topProducts').innerHTML = list.length ? list.map((r) => `
     <tr><td>${esc(r.name)}</td><td class="c">${r.qty}</td><td class="r">${rp(r.rev)}</td>
     <td class="r ${r.rev - r.hpp < 0 ? 'no' : 'ok'}">${rp(r.rev - r.hpp)}</td></tr>`).join('')
-    : `<tr><td colspan="4" class="muted center">Belum ada produk tercatat pada periode ini</td></tr>`;
+    : `<tr><td colspan="4" class="muted center">Belum ada stok terjual pada periode ini</td></tr>`;
 }
+
 
 function renderTrend(rows, from, to) {
   if (typeof Chart === 'undefined') return;
@@ -710,13 +789,13 @@ function renderTrend(rows, from, to) {
   });
 }
 
-function renderDistribution(list) {
+function renderDistribution(rows) {
   if (typeof Chart === 'undefined') return;
   const catOf = Object.fromEntries(products.map((p) => [p.id, p.category || 'Umum']));
   const map = {};
-  list.forEach((c) => (c.items || []).forEach((i) => {
-    const k = catOf[i.id] || 'Lainnya';
-    map[k] = (map[k] || 0) + num(i.qty) * num(i.price);
+  rows.forEach(({ k }) => k.detail.forEach((d) => {
+    const cat = catOf[d.id] || 'Lainnya';
+    map[cat] = (map[cat] || 0) + d.rev;
   }));
   const labels = Object.keys(map);
   charts.dist?.destroy();
@@ -733,6 +812,7 @@ function renderDistribution(list) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
   });
 }
+
 
 function renderWithdrawals(wd) {
   $('withdrawList').innerHTML = wd.length ? wd.map((w) => `
@@ -803,12 +883,17 @@ function openClosingDetail(id) {
   const c = allClosings.find((x) => x.id === id);
   if (!c) return;
   const k = calcClosing(c, withdrawalsByDate());
-  const itemRows = (c.items || []).map((i) => `
-    <div class="line"><span>${esc(i.name)}<small>${i.qty} × ${rp(i.price)}</small></span><b>${rp(i.qty * num(i.price))}</b></div>`).join('')
-    || `<p class="muted">Tidak ada produk dicatat</p>`;
+
+  const prodRows = k.detail.length ? k.detail.map((d) => k.stockBased
+    ? `<tr><td>${esc(d.name)}</td><td class="c">${num(d.awal)}</td><td class="c">${num(d.masuk)}</td>
+        <td class="c">${num(d.akhir)}</td><td class="c"><b>${d.terjual}</b></td><td class="r">${rp(d.rev)}</td></tr>`
+    : `<tr><td>${esc(d.name)}</td><td class="c" colspan="4">${num(d.qty)} terjual</td><td class="r">${rp(d.rev)}</td></tr>`
+  ).join('') : `<tr><td colspan="6" class="muted center">Tidak ada produk dicatat</td></tr>`;
+
   const opexHtml = (c.opex || []).map((o) => `
-    <div class="line"><span>${esc(o.desc || '-')}<small>${o.fromDrawer ? 'dari laci' : 'bukan dari laci'}</small></span><b>${rp(o.amount)}</b></div>`).join('')
+    <div class="line"><span>${esc(o.desc || '-')}<small>${o.kind === 'stok' ? 'belanja stok' : 'biaya operasional'} · ${o.fromDrawer ? 'dari laci' : 'bukan dari laci'}</small></span><b>${rp(o.amount)}</b></div>`).join('')
     || `<p class="muted">Tidak ada pengeluaran</p>`;
+
   const ck = c.checklist || {};
   const chk = [['counted', 'Uang dihitung'], ['photos', 'Nota difoto'], ['stock', 'Stok dicek']]
     .map(([key, label]) => `<span class="chip ${ck[key] ? 'ok' : 'no'}">${label}</span>`).join(' ');
@@ -818,29 +903,36 @@ function openClosingDetail(id) {
 
   openSheet(`
     <h3 class="sheet-title">${fmtDate(c.date)}</h3>
-    <p class="hint">Kasir: ${esc(c.kasirName || '-')}</p>
+    <p class="hint">Kasir: ${esc(c.kasirName || '-')}${c.editedBy ? ` · diedit oleh ${esc(c.editedBy)}` : ''}</p>
 
-    <h4 class="sub-hd">Penjualan</h4>
+    <h4 class="sub-hd">Stok produk</h4>
+    <div class="table-wrap sheet-tbl">
+      <table class="tbl">
+        <thead><tr><th>Produk</th><th class="c">Awal</th><th class="c">Masuk</th><th class="c">Sisa</th><th class="c">Terjual</th><th class="r">Omset</th></tr></thead>
+        <tbody>${prodRows}</tbody>
+      </table>
+    </div>
+
+    <h4 class="sub-hd">Omset</h4>
     <div class="sum-block">
-      <div class="line"><span>Modal awal</span><b>${rp(c.startingCash)}</b></div>
       <div class="line"><span>Tunai</span><b>${rp(c.cashRevenue)}</b></div>
       <div class="line"><span>QRIS</span><b>${rp(c.qrisRevenue)}</b></div>
-      <div class="line total"><span>Omset</span><b>${rp(k.gross)}</b></div>
-      <div class="line"><span>HPP produk</span><b>${rp(k.hpp)}</b></div>
-      <div class="line"><span>Pengeluaran toko</span><b>${rp(k.opexTotal)}</b></div>
+      <div class="line total"><span>Omset tercatat</span><b>${rp(k.gross)}</b></div>
+      ${k.stockBased ? `<div class="line"><span>Omset seharusnya (dari stok)</span><b>${rp(k.soldRev)}</b></div>
+      <div class="line total"><span>Selisih omset</span><b class="${k.omsetDiff === 0 ? 'ok' : 'no'}">${signedRp(k.omsetDiff)}</b></div>` : ''}
+      <div class="line"><span>HPP terjual</span><b>${rp(k.hpp)}</b></div>
+      <div class="line"><span>Biaya operasional</span><b>${rp(k.opexBiaya)}</b></div>
+      <div class="line"><span>Belanja stok (sudah jadi stok)</span><b>${rp(k.opexStok)}</b></div>
       <div class="line total"><span>Laba bersih</span><b>${rp(k.net)}</b></div>
-      ${k.unrecorded ? `<div class="line"><span>Omset belum tercatat per produk<small>Periksa dengan kasir</small></span><b class="warn">${rp(k.unrecorded)}</b></div>` : ''}
     </div>
 
     <h4 class="sub-hd">Kas laci</h4>
     <div class="sum-block">
+      <div class="line"><span>Modal awal</span><b>${rp(c.startingCash)}</b></div>
       <div class="line"><span>Seharusnya di laci</span><b>${rp(k.expected)}</b></div>
       <div class="line"><span>Uang fisik</span><b>${rp(c.actualCash)}</b></div>
-      <div class="line total"><span>Selisih</span><b class="${k.diff === 0 ? 'ok' : k.diff < 0 ? 'no' : 'warn'}">${signedRp(k.diff)}</b></div>
+      <div class="line total"><span>Selisih kas</span><b class="${k.diff === 0 ? 'ok' : k.diff < 0 ? 'no' : 'warn'}">${signedRp(k.diff)}</b></div>
     </div>
-
-    <h4 class="sub-hd">Produk terjual</h4>
-    <div class="sum-block">${itemRows}</div>
 
     <h4 class="sub-hd">Pengeluaran</h4>
     <div class="sum-block">${opexHtml}</div>
@@ -859,6 +951,7 @@ function openClosingDetail(id) {
   `);
 }
 
+
 // ---- Edit laporan (owner) ----
 function pickHtml(p, q) {
   return `<div class="pick ${q ? 'on' : ''}" data-id="${p.id}">
@@ -870,28 +963,39 @@ function pickHtml(p, q) {
     </div></div>`;
 }
 
-function opexEditHtml(desc = '', amount = 0, drawer = true) {
+function opexEditHtml(desc = '', amount = '', drawer = true, kind = 'biaya') {
   return `<div class="opex-row">
     <div class="opex-top">
-      <input type="text" class="opex-desc" placeholder="Nama belanja" value="${esc(desc)}">
-      <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric" value="${num(amount)}">
+      <input type="text" class="opex-desc" placeholder="Nama belanja (mis. Gas 3kg)" value="${esc(desc)}">
+      <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric" value="${amount}">
       <button type="button" class="icon-btn" aria-label="Hapus">${ic('x')}</button>
     </div>
-    <label class="switch-row"><input type="checkbox" class="opex-drawer" ${drawer ? 'checked' : ''}><span class="switch"></span>Dibayar dari uang laci</label>
+    <div class="opex-meta">
+      <select class="opex-kind">
+        <option value="biaya" ${kind !== 'stok' ? 'selected' : ''}>Biaya operasional</option>
+        <option value="stok" ${kind === 'stok' ? 'selected' : ''}>Belanja stok</option>
+      </select>
+      <label class="switch-row"><input type="checkbox" class="opex-drawer" ${drawer ? 'checked' : ''}><span class="switch"></span>Dari laci</label>
+    </div>
   </div>`;
 }
+
 
 function openEditClosing(id) {
   const c = allClosings.find((x) => x.id === id);
   if (!c) return;
-  const eQty = {};
-  (c.items || []).forEach((i) => { eQty[i.id] = num(i.qty); });
-  // Produk yang sudah tercatat tapi sudah dinonaktifkan tetap bisa diedit
-  const prodList = [
-    ...products,
-    ...(c.items || []).filter((i) => !products.some((p) => p.id === i.id))
-      .map((i) => ({ id: i.id, name: i.name, price: i.price, active: false }))
-  ];
+  const stockBased = (c.items || []).some((i) => i.akhir !== undefined);
+  const stockHtml = stockBased
+    ? `<div class="stock-head"><span>Produk</span><span class="c">Awal</span><span class="c">Masuk</span><span class="c">Sisa</span></div>` +
+      (c.items || []).map((i) => `
+        <div class="stock-row" data-id="${i.id}">
+          <div class="sr-name"><strong>${esc(i.name)}</strong><small>Harga ${rp(i.price)}</small></div>
+          <span class="sr-awal">${num(i.awal)}</span>
+          <input type="number" class="er-masuk" inputmode="numeric" min="0" value="${num(i.masuk)}">
+          <input type="number" class="er-sisa" inputmode="numeric" min="0" value="${num(i.akhir)}">
+        </div>`).join('')
+    : `<p class="hint">Laporan ini dibuat dengan versi lama, jadi daftar produk tidak bisa diedit.</p>`;
+
   openSheet(`
     <h3 class="sheet-title">Edit laporan</h3>
     <p class="hint">${fmtDate(c.date)} · ${esc(c.kasirName || '-')}</p>
@@ -907,11 +1011,11 @@ function openEditClosing(id) {
     <div class="field"><label for="eActual">Uang fisik di laci</label>
       <div class="money"><span>Rp</span><input type="number" id="eActual" inputmode="numeric" value="${num(c.actualCash)}"></div></div>
 
-    <h4 class="sub-hd">Produk terjual</h4>
-    <div id="ePicker" class="picker">${prodList.map((p) => pickHtml(p, eQty[p.id] || 0)).join('')}</div>
+    <h4 class="sub-hd">Stok produk</h4>
+    <div id="eStock">${stockHtml}</div>
 
     <h4 class="sub-hd">Pengeluaran</h4>
-    <div id="eOpex">${(c.opex || []).map((o) => opexEditHtml(o.desc, o.amount, o.fromDrawer)).join('')}</div>
+    <div id="eOpex">${(c.opex || []).map((o) => opexEditHtml(o.desc, o.amount, o.fromDrawer, o.kind)).join('')}</div>
     <button type="button" class="btn-outline" id="eAddOpex">${ic('plus')}Tambah belanja</button>
 
     <div class="field" style="margin-top:14px"><label for="eNotes">Catatan</label>
@@ -920,15 +1024,6 @@ function openEditClosing(id) {
     <button class="btn-primary" id="eSave">${ic('check')}Simpan perubahan</button>
     <button class="btn-ghost" data-close>Batal</button>
   `, () => {
-    $('ePicker').addEventListener('click', (e) => {
-      const b = e.target.closest('.step');
-      if (!b) return;
-      const card = b.closest('.pick');
-      const pid = card.dataset.id;
-      eQty[pid] = Math.max(0, (eQty[pid] || 0) + Number(b.dataset.step));
-      card.querySelector('.qty').textContent = eQty[pid];
-      card.classList.toggle('on', eQty[pid] > 0);
-    });
     $('eOpex').addEventListener('click', (e) => {
       const b = e.target.closest('.icon-btn');
       if (b) b.closest('.opex-row').remove();
@@ -936,34 +1031,52 @@ function openEditClosing(id) {
     $('eAddOpex').addEventListener('click', () => {
       $('eOpex').insertAdjacentHTML('beforeend', opexEditHtml());
     });
+
     $('eSave').onclick = async () => {
       const cashRevenue = num($('eCash').value);
       const qrisRevenue = num($('eQris').value);
-      const items = Object.entries(eQty).filter(([, q]) => q > 0).map(([pid, q]) => {
-        const prev = (c.items || []).find((i) => i.id === pid);
-        const p = prodList.find((x) => x.id === pid);
-        return { id: pid, name: p.name, qty: q, price: prev ? num(prev.price) : num(p.price) };
-      });
       const opex = [...document.querySelectorAll('#eOpex .opex-row')].map((r) => ({
         desc: r.querySelector('.opex-desc').value.trim(),
         amount: num(r.querySelector('.opex-amount').value),
-        fromDrawer: r.querySelector('.opex-drawer').checked
+        fromDrawer: r.querySelector('.opex-drawer').checked,
+        kind: r.querySelector('.opex-kind').value
       })).filter((o) => o.desc || o.amount);
-      const opexTotal = opex.reduce((s, o) => s + o.amount, 0);
+      const sumIf = (fn) => opex.filter(fn).reduce((s, o) => s + o.amount, 0);
+
+      const items = stockBased
+        ? (c.items || []).map((i) => {
+            const row = document.querySelector(`#eStock .stock-row[data-id="${i.id}"]`);
+            return {
+              ...i,
+              masuk: num(row.querySelector('.er-masuk').value),
+              akhir: num(row.querySelector('.er-sisa').value)
+            };
+          })
+        : (c.items || []);
+
       try {
-        await db.collection(C.closings).doc(c.id).update({
+        const batch = db.batch();
+        batch.update(db.collection(C.closings).doc(c.id), {
           startingCash: num($('eStart').value),
           cashRevenue, qrisRevenue,
           grossRevenue: cashRevenue + qrisRevenue,
           items,
-          itemsRevenue: items.reduce((s, i) => s + i.qty * i.price, 0),
-          opex, opexTotal,
-          opexDrawer: opex.filter((o) => o.fromDrawer).reduce((s, o) => s + o.amount, 0),
+          opex,
+          opexTotal: sumIf(() => true),
+          opexDrawer: sumIf((o) => o.fromDrawer),
+          opexBiaya: sumIf((o) => o.kind !== 'stok'),
+          opexStok: sumIf((o) => o.kind === 'stok'),
           actualCash: num($('eActual').value),
           notes: $('eNotes').value.trim(),
           editedBy: profile.name,
           editedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        // Jika ini laporan terbaru, stok produk ikut disesuaikan
+        const latest = allClosings.reduce((m, x) => (x.date > m ? x.date : m), '');
+        if (stockBased && c.date === latest) {
+          items.forEach((i) => batch.update(db.collection(C.products).doc(i.id), { stock: i.akhir }));
+        }
+        await batch.commit();
         closeSheet();
         toast('Laporan diperbarui');
       } catch (err) {
@@ -972,6 +1085,7 @@ function openEditClosing(id) {
     };
   });
 }
+
 
 async function deleteClosing(id) {
   if (!confirm('Hapus laporan ini? Kasir bisa mengirim ulang untuk tanggal tersebut setelah dihapus.')) return;
@@ -1208,34 +1322,49 @@ async function exportWorkbook() {
   const { from, to } = getRange();
   const list = inRange(allClosings, from, to);
   const wdMap = withdrawalsByDate();
+
   const laporan = list.map((c) => {
     const k = calcClosing(c, wdMap);
     return {
-      'Tanggal': c.date, 'Kasir': c.kasirName, 'Modal Awal': num(c.startingCash),
-      'Tunai': num(c.cashRevenue), 'QRIS': num(c.qrisRevenue), 'Omset': k.gross,
-      'HPP': k.hpp, 'Pengeluaran Toko': k.opexTotal, 'Laba Bersih': k.net,
-      'Seharusnya di Laci': k.expected, 'Uang Fisik': num(c.actualCash), 'Selisih Kas': k.diff,
-      'Omset Belum Tercatat per Produk': k.unrecorded, 'Catatan': c.notes || ''
+      'Tanggal': c.date, 'Kasir': c.kasirName,
+      'Modal Awal': num(c.startingCash), 'Tunai': num(c.cashRevenue), 'QRIS': num(c.qrisRevenue),
+      'Omset Tercatat': k.gross, 'Omset Seharusnya (stok)': k.soldRev, 'Selisih Omset': k.omsetDiff,
+      'HPP Terjual': k.hpp, 'Biaya Operasional': k.opexBiaya, 'Belanja Stok': k.opexStok,
+      'Laba Bersih': k.net, 'Seharusnya di Laci': k.expected, 'Uang Fisik': num(c.actualCash),
+      'Selisih Kas': k.diff, 'Catatan': c.notes || ''
     };
+  });
+  const detail = [];
+  list.forEach((c) => {
+    const k = calcClosing(c, wdMap);
+    k.detail.forEach((d) => detail.push({
+      'Tanggal': c.date, 'Produk': d.name,
+      'Awal': d.awal ?? '', 'Masuk': d.masuk ?? '', 'Sisa': d.akhir ?? '',
+      'Terjual': d.terjual, 'Harga': num(d.price), 'Omset': d.rev, 'HPP': d.hpp
+    }));
   });
   const produk = products.map((p) => ({
     'Produk': p.name, 'Kategori': p.category, 'Harga Jual': num(p.price),
-    'HPP': num(costs[p.id]), 'Status': p.active === false ? 'Nonaktif' : 'Aktif'
+    'HPP': num(costs[p.id]), 'Stok Sekarang': num(p.stock),
+    'Nilai Stok (HPP)': num(p.stock) * num(costs[p.id]),
+    'Status': p.active === false ? 'Nonaktif' : 'Aktif'
   }));
   const wdRows = inRange(withdrawals, from, to).map((w) => ({
     'Tanggal': w.date, 'Jumlah': num(w.amount), 'Catatan': w.note || '', 'Dicatat oleh': w.by || ''
   }));
-  const sheet = (rows) => XLSX.utils.json_to_sheet(rows.length ? rows : [{ Keterangan: 'Tidak ada data' }]);
 
+  const sheet = (rows) => XLSX.utils.json_to_sheet(rows.length ? rows : [{ Keterangan: 'Tidak ada data' }]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheet(laporan), 'Laporan');
+  XLSX.utils.book_append_sheet(wb, sheet(detail), 'Detail Stok');
   XLSX.utils.book_append_sheet(wb, sheet(produk), 'Produk');
   XLSX.utils.book_append_sheet(wb, sheet(wdRows), 'Pengambilan Owner');
   const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-  await saveFile(`Barokah_${from}_sd_${to}.xlsx`, b64,
+  await saveFile(`KantinBarokah_${from}_sd_${to}.xlsx`, b64,
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   toast('File Excel siap');
 }
+
 
 // ---- Backup JSON (semua data) ----
 async function backupAll() {
