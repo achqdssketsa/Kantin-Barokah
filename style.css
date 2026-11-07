@@ -501,3 +501,38 @@ button { border: 0; background: none; font: inherit; color: inherit; padding: 0;
 .sheet-tbl { margin-top: 4px; }
 .sheet-tbl .tbl th, .sheet-tbl .tbl td { padding: 8px 6px; font-size: 12px; }
 .alert-item.tap { cursor: pointer; }
+
+/* ================= V4: DUA KANTONG, PRODUK, OPNAME RINCI ================= */
+.saldo-row { display: flex; justify-content: space-between; align-items: baseline; width: 100%; padding: 2px 0; }
+.saldo-row span { font-size: 13px; }
+.saldo-info { flex-direction: column; align-items: stretch; gap: 4px; }
+.saldo-info small { width: auto; }
+
+.seg { display: flex; background: #f1ead2; border-radius: 16px; padding: 4px; margin-bottom: 14px; }
+.seg-btn { flex: 1; height: 40px; border-radius: 12px; font-weight: 600; font-size: 14px; color: var(--muted); transition: background .25s, color .25s; }
+.seg-btn.active { background: var(--green); color: var(--gold-soft); box-shadow: 0 6px 14px rgba(29,77,44,.25); }
+.seg-pane { display: none; }
+.seg-pane.active { display: block; animation: fadeUp .35s ease both; }
+
+.opex-row { background: #fffaf0; border: 1px solid var(--line); border-radius: 16px; padding: 10px; margin-bottom: 10px; animation: fadeUp .3s ease both; }
+.opex-top { display: grid; grid-template-columns: 1fr 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.opex-top select { height: 42px; border-radius: 12px; padding: 0 10px; font-weight: 600; font-size: 13.5px; border: 1.5px solid var(--line); background: #fff; }
+.ox-biaya input, .ox-stok select, .ox-stok input {
+  width: 100%; height: 42px; border-radius: 12px; padding: 0 12px; border: 1.5px solid var(--line); background: #fff; font-size: 14px; margin-bottom: 8px;
+}
+.ox-stok { display: grid; grid-template-columns: 1.6fr .8fr; gap: 8px; }
+.ox-stok select, .ox-stok input { margin-bottom: 8px; }
+.ox-stok input { text-align: center; }
+.hidden { display: none !important; }
+.opex-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.opex-meta .money.mini { height: 42px; padding: 0 10px; border-radius: 12px; }
+.opex-meta .money.mini input { font-size: 14px; }
+.opex-pocket { height: 42px; border-radius: 12px; border: 1.5px solid var(--line); background: #fff; padding: 0 10px; font-weight: 600; font-size: 13.5px; }
+.opex-product, .opex-qty { margin-bottom: 0; }
+.ox-stok { margin-bottom: 8px; }
+.icon-btn { width: 36px; height: 36px; border-radius: 12px; padding: 9px; background: #fbe9e7; color: var(--red); }
+.icon-btn svg { width: 100%; height: 100%; }
+.stock-row .sr-val { text-align: right; font-weight: 600; color: var(--green); font-size: 13px; }
+.stock-head span:last-child { text-align: right; }
+.stock-row input { width: 100%; }
+.prod-price { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }

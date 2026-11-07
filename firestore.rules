@@ -12,7 +12,7 @@ service cloud.firestore {
       return signedIn() && roleOf(request.auth.uid) == 'owner';
     }
 
-    // Profil: user boleh ubah nama & foto sendiri, role hanya oleh owner
+    // Profil: user ubah nama & foto sendiri; role hanya oleh owner
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isOwner());
       allow create, delete: if isOwner();
@@ -23,38 +23,62 @@ service cloud.firestore {
       );
     }
 
-    // Saldo laci terakhir (hanya info untuk kasir; perhitungan owner memakai laporan)
+    // Saldo laci & kasir terakhir (info untuk kasir)
     match /kas/{id} {
       allow read, write: if signedIn();
     }
 
-    // Laporan harian: kasir hanya boleh CREATE, owner yang baca/ubah/hapus
+    // Produk: semua baca. Kasir boleh menambah produk BARU tanpa harga (menunggu owner).
+    // Harga & HPP hanya diubah owner. Produk tidak bisa dihapus (nonaktifkan saja).
+    match /products/{id} {
+      allow read: if signedIn();
+      allow create: if isOwner() || (
+        signedIn() &&
+        request.resource.data.price == 0 &&
+        request.resource.data.hpp == 0 &&
+        request.resource.data.needsPrice == true &&
+        request.resource.data.active == true
+      );
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+
+    // Laporan harian: kasir hanya CREATE. Owner boleh baca & edit (edit tercatat di log). Tidak bisa dihapus.
     match /daily_closings/{date} {
       allow create: if signedIn()
         && request.resource.data.submittedBy == request.auth.uid
         && request.resource.data.date == date;
-      allow read, update, delete: if isOwner();
+      allow read, update: if isOwner();
+      allow delete: if false;
 
-      // Foto nota (base64 terkompres)
       match /photos/{pid} {
         allow create: if signedIn()
           && get(/databases/$(database)/documents/daily_closings/$(date)).data.submittedBy == request.auth.uid;
-        allow read, delete: if isOwner();
+        allow read: if isOwner();
+        allow update, delete: if false;
       }
     }
 
-    // Opname stok & pengambilan owner: hanya owner
+    // Opname: hanya owner membuat. Tidak bisa diubah atau dihapus (bukti audit).
     match /opname/{id} {
-      allow read, write: if isOwner();
-    }
-    match /owner_withdrawals/{id} {
-      allow read, write: if isOwner();
+      allow read, create: if isOwner();
+      allow update, delete: if false;
     }
 
-    // Koleksi lama (v2.x), dibiarkan agar data lama tetap aman
-    match /products/{id} {
-      allow read, write: if isOwner();
+    // Ambil & setor owner: bisa ditambah, tidak bisa diubah atau dihapus
+    match /owner_withdrawals/{id} {
+      allow read, create: if isOwner();
+      allow update, delete: if false;
     }
+
+    // Log aktivitas: setiap user bisa menambah catatan atas namanya sendiri; hanya owner yang membaca
+    match /audit/{id} {
+      allow create: if signedIn() && request.resource.data.byUid == request.auth.uid;
+      allow read: if isOwner();
+      allow update, delete: if false;
+    }
+
+    // Koleksi lama (v1–v2)
     match /product_costs/{id} {
       allow read, write: if isOwner();
     }

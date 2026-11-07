@@ -1,5 +1,5 @@
 // ============================================================
-// KANTIN BAROKAH · Tutup Kasir · app.js (v3.0.0)
+// KANTIN BAROKAH · Tutup Kasir · app.js (v4.0.0)
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBn7vcKmacOkQGAO8W2WzIyJ331XqJccAg",
@@ -15,19 +15,24 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 const TS = () => firebase.firestore.FieldValue.serverTimestamp();
 
-const APP_VERSION = '3.0.0';
-const C = { closings: 'daily_closings', users: 'users', withdrawals: 'owner_withdrawals', opname: 'opname', kas: 'kas' };
-const PHOTO_SIDE = 800, PHOTO_QUALITY = 0.6;
-const AVATAR_SIDE = 512, AVATAR_QUALITY = 0.7;
-const MAX_B64 = 900000;          // batas aman satu dokumen Firestore (1 MB)
-// Tempat penyimpanan foto nota:
-//   'drive'     → Google Drive lewat Apps Script (folder "Kantin Barokah - Bukti Nota")
-//   'firestore' → langsung di database (tanpa Drive)
+const APP_VERSION = '4.0.0';
+const C = {
+  closings: 'daily_closings', users: 'users', withdrawals: 'owner_withdrawals',
+  opname: 'opname', kas: 'kas', products: 'products', audit: 'audit'
+};
+
+// Penyimpanan foto: 'drive' (Google Drive lewat Apps Script) atau 'firestore'
 const PHOTO_STORAGE = 'drive';
 const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbyunLWcCJpVO1sgJmWoY3tiHvkIEf8SbUUN1Uby3PGmtN4R0MGmjHlOaQ-1bLjRD4Y/exec';
-const TOL_ABS = 10000, TOL_REL = 0.01;   // toleransi selisih opname (rasio harga tidak pernah persis)
+const PHOTO_SIDE = 800, PHOTO_QUALITY = 0.6;
+const AVATAR_SIDE = 512, AVATAR_QUALITY = 0.7;
+const MAX_B64 = 900000;
+
+// Toleransi selisih: nilai yang lebih besar antara Rp10.000 atau 1% omset
+const TOL_ABS = 10000, TOL_REL = 0.01;
+
 const GREEN = '#1d4d2c', GOLD = '#c9963e';
-const PALETTE = ['#1d4d2c', '#c9963e', '#4f8a63', '#e3c57a', '#8c5a2b'];
+const PALETTE = ['#1d4d2c', '#c9963e', '#4f8a63', '#e3c57a', '#8c5a2b', '#2f6b4f'];
 
 // ============================================================
 // IKON
@@ -59,7 +64,8 @@ const ICONS = {
   wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
   cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
   alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
-  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>'
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  log: '<path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>'
 };
 const ic = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
 function hydrate(root = document) {
@@ -81,6 +87,7 @@ const fmtDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { w
 const fmtShort = (s) => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 const usernameToEmail = (u) => { const v = u.trim().toLowerCase(); return v.includes('@') ? v : `${v}@kantin.app`; };
 const sortAsc = (list) => [...list].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+const sumBy = (arr, fn) => arr.reduce((s, x) => s + fn(x), 0);
 const photoSrc = (b64) => 'data:image/jpeg;base64,' + b64;
 const avatarHtml = (u) => u.photoData
   ? `<img src="${photoSrc(u.photoData)}" alt="">`
@@ -88,7 +95,7 @@ const avatarHtml = (u) => u.photoData
 const setText = (id, t) => { $(id).textContent = t; };
 
 // ============================================================
-// KARTU NOTIFIKASI (pengganti alert & confirm)
+// KARTU NOTIFIKASI
 // ============================================================
 function dialog({ tone = 'info', title, message, okText = 'Oke', cancelText = null }) {
   return new Promise((resolve) => {
@@ -131,7 +138,7 @@ function toast(msg) {
 }
 
 // ============================================================
-// GESTUR: riak untuk tombol biasa, ikon membesar untuk menu
+// GESTUR
 // ============================================================
 document.addEventListener('pointerdown', (e) => {
   const t = e.target.closest('button, .tap');
@@ -166,16 +173,12 @@ $('sheetBody').addEventListener('click', (e) => {
   if (im) return openViewer(im.dataset.url);
   const ed = e.target.closest('[data-edit]');
   if (ed) return openEditClosing(ed.dataset.edit);
-  const del = e.target.closest('[data-del]');
-  if (del) return deleteClosing(del.dataset.del);
-  const dw = e.target.closest('[data-del-op]');
-  if (dw) return deleteOpname(dw.dataset.delOp);
 });
 function openViewer(url) { $('viewerImg').src = url; $('viewer').classList.add('show'); }
 $('viewer').addEventListener('click', () => $('viewer').classList.remove('show'));
 
 // ============================================================
-// FOTO: kompres di HP, simpan sebagai base64 di Firestore
+// FOTO
 // ============================================================
 function compressImage(file, side, quality) {
   return new Promise((resolve, reject) => {
@@ -200,14 +203,13 @@ async function preparePhoto(file, side, quality) {
   if (b64.length > MAX_B64) throw new Error('Foto tetap terlalu besar setelah dikompres.');
   return { blob, b64 };
 }
-
 async function uploadToDrive(b64, fileName) {
   const idToken = await auth.currentUser.getIdToken();
   let res;
   try {
     res = await fetch(DRIVE_UPLOAD_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ idToken, fileName, mimeType: 'image/jpeg', data: b64 })
     });
   } catch (err) {
@@ -218,7 +220,19 @@ async function uploadToDrive(b64, fileName) {
   try { json = JSON.parse(text); }
   catch (err) { throw new Error(`Server Drive membalas halaman, bukan data (HTTP ${res.status}).`); }
   if (!json.ok) throw new Error(json.error || `Upload ditolak server (HTTP ${res.status}).`);
-  return json; // { fileId, url }
+  return json;
+}
+
+// ============================================================
+// LOG AKTIVITAS (audit): hanya bisa ditambah, tidak bisa diubah/dihapus
+// ============================================================
+async function logAudit(action, target, summary) {
+  try {
+    await db.collection(C.audit).add({
+      action, target, summary,
+      byUid: profile.uid, by: profile.name, at: TS()
+    });
+  } catch (err) { console.error('audit', err); }
 }
 
 // ============================================================
@@ -309,20 +323,29 @@ function showTab(name) {
 document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 $('btnProfile').addEventListener('click', () => showTab('settings'));
 
+document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click', () => {
+  document.querySelectorAll('.seg-btn').forEach((x) => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.seg-pane').forEach((p) => p.classList.toggle('active', p.id === 'seg-' + b.dataset.seg));
+}));
+
 // ============================================================
 // LISTENER FIRESTORE
 // ============================================================
 let unsubs = [];
-let allClosings = [], withdrawals = [], opnames = [], allUsers = [];
-let kasSaldo = null;            // saldo laci terakhir (info untuk kasir)
-let days = [], periods = [];    // hasil perhitungan (owner)
+let allClosings = [], withdrawals = [], opnames = [], allUsers = [], products = [], auditLogs = [];
+let kasSaldo = null;
+let days = [], periods = [];
 
 function startListeners() {
   stopListeners();
   unsubs.push(db.collection(C.kas).doc('saldo').onSnapshot((s) => {
     kasSaldo = s.exists ? s.data() : null;
     renderSaldoInfo();
-  }, (err) => console.error('kas', err)));
+  }));
+  unsubs.push(db.collection(C.products).orderBy('name').onSnapshot((s) => {
+    products = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    refreshProducts();
+  }, (err) => console.error('products', err)));
 
   if (profile.role !== 'owner') return;
   unsubs.push(db.collection(C.closings).orderBy('date', 'desc').limit(1000).onSnapshot((s) => {
@@ -341,13 +364,16 @@ function startListeners() {
     allUsers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderUsersList();
   }));
+  unsubs.push(db.collection(C.audit).orderBy('at', 'desc').limit(200).onSnapshot((s) => {
+    auditLogs = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+  }));
 }
 
 function stopListeners() {
   unsubs.forEach((u) => u());
   unsubs = [];
-  allClosings = []; withdrawals = []; opnames = []; allUsers = []; kasSaldo = null;
-  days = []; periods = [];
+  allClosings = []; withdrawals = []; opnames = []; allUsers = []; products = []; auditLogs = [];
+  kasSaldo = null; days = []; periods = [];
 }
 
 function refreshOwner() {
@@ -356,88 +382,131 @@ function refreshOwner() {
   renderDashboard();
   renderOpnameTab();
 }
-
-// ============================================================
-// PERHITUNGAN
-// ============================================================
-// Setiap hari: kas laci harus = saldo awal (uang fisik kemarin) + tunai − keluar dari laci − ambil dari laci
-// Saldo awal selalu diambil dari laporan sebelumnya, bukan dari isian kasir → tidak bisa dimanipulasi.
-function recompute() {
-  const wdLac = {};
-  withdrawals.forEach((w) => {
-    if (w.fromDrawer === false) return;
-    wdLac[w.date] = (wdLac[w.date] || 0) + (w.type === 'setor' ? -num(w.amount) : num(w.amount));
-  });
-
-  days = [];
-  let prevActual = null;
-  sortAsc(allClosings).forEach((c) => {
-    const opexTotal = num(c.opexTotal ?? c.totalOpex);
-    const opexBiaya = c.opexBiaya != null ? num(c.opexBiaya) : opexTotal;
-    const opexStok = num(c.opexStok);
-    const opexDrawer = c.opexDrawer != null ? num(c.opexDrawer) : opexTotal;
-    const cash = num(c.cashRevenue), qris = num(c.qrisRevenue);
-    const gross = num(c.grossRevenue) || cash + qris;
-    const startLaci = prevActual ?? num(c.startingCash);
-    const ambilLaci = wdLac[c.date] || 0;
-    const expected = startLaci + cash - opexDrawer - ambilLaci;
-    const actual = num(c.actualCash);
-    days.push({ c, gross, cash, qris, opexBiaya, opexStok, opexTotal, opexDrawer, startLaci, ambilLaci, expected, actual, diff: actual - expected });
-    prevActual = actual;
-  });
-
-  periods = buildPeriods();
+function refreshProducts() {
+  renderProductPicker();
+  if (profile?.role === 'owner') renderProductsTab();
 }
 
-// Rekonsiliasi antara dua opname berurutan (A → B)
-function buildPeriods() {
-  const ops = sortAsc(opnames);
+// ============================================================
+// PERHITUNGAN (fungsi murni: bisa diuji tanpa database)
+// ============================================================
+const pocketOf = (o) => o.pocket || (o.fromDrawer === false ? 'luar' : 'laci');
+
+// Hitungan harian per kantong. Saldo awal = uang fisik hari sebelumnya.
+function computeDays(closings, withdrawalsList) {
+  const wd = {};
+  withdrawalsList.forEach((w) => {
+    const sign = w.type === 'setor' ? -1 : 1;
+    const k = w.pocket === 'kasir' ? 'kasir' : 'laci';
+    wd[w.date] = wd[w.date] || { laci: 0, kasir: 0 };
+    wd[w.date][k] += sign * num(w.amount);
+  });
+
   const out = [];
-  for (let i = 1; i < ops.length; i++) {
-    const A = ops[i - 1], B = ops[i];
-    const inP = days.filter((d) => d.c.date > A.date && d.c.date <= B.date);
-    const sum = (fn) => inP.reduce((s, d) => s + fn(d), 0);
-    const gross = sum((d) => d.gross);
-    const biaya = sum((d) => d.opexBiaya);
-    const beli = sum((d) => d.opexStok);
-    const ambil = withdrawals
-      .filter((w) => w.date > A.date && w.date <= B.date)
-      .reduce((s, w) => s + (w.type === 'setor' ? -num(w.amount) : num(w.amount)), 0);
+  let prev = null;
+  sortAsc(closings).forEach((c) => {
+    const legacy = c.actualLaci === undefined;   // laporan v1–v3: hanya satu kantong
+    const w = wd[c.date] || { laci: 0, kasir: 0 };
+    const cash = num(c.cashRevenue), qris = num(c.qrisRevenue);
+    const gross = num(c.grossRevenue) || cash + qris;
+    const opex = c.opex || [];
+    const opexLaci = sumBy(opex.filter((o) => pocketOf(o) === 'laci'), (o) => num(o.amount));
+    const opexKasir = sumBy(opex.filter((o) => pocketOf(o) === 'kasir'), (o) => num(o.amount));
+    const opexBiaya = c.opexBiaya != null ? num(c.opexBiaya) : sumBy(opex.filter((o) => o.kind !== 'stok'), (o) => num(o.amount));
+    const opexStok = c.opexStok != null ? num(c.opexStok) : sumBy(opex.filter((o) => o.kind === 'stok'), (o) => num(o.amount));
 
-    // HPP barang terjual = stok awal + belanja stok − stok akhir (semua dalam nilai HPP)
-    const hppSold = num(A.hppValue) + beli - num(B.hppValue);
-    // Rasio harga jual / HPP dari opname akhir (atau opname awal jika akhir tidak lengkap)
-    const ratio = num(B.hppValue) > 0 && num(B.jualValue) > 0
-      ? num(B.jualValue) / num(B.hppValue)
-      : (num(A.hppValue) > 0 && num(A.jualValue) > 0 ? num(A.jualValue) / num(A.hppValue) : 1);
-    const omsetSeh = hppSold * ratio;
-    const selOmset = gross - omsetSeh;
+    const startLaci = prev?.laci ?? num(c.startLaci ?? c.startingCash);
+    const startKasir = prev?.kasir ?? num(c.startKasir);
+    const ambil = num(c.ambilLaci), setor = num(c.setorKasir);
 
-    const laba = gross - hppSold - biaya;
-    // Kekayaan = stok (HPP) + saldo bank + uang laci
-    const wA = num(A.hppValue) + num(A.bank) + lociAt(A.date);
-    const wB = num(B.hppValue) + num(B.bank) + lociAt(B.date);
-    const selKek = (wB - wA) - (laba - ambil);
+    const physLaci = legacy ? num(c.actualCash) : num(c.actualLaci);
+    const physKasir = legacy ? null : num(c.actualKasir);
 
-    const tol = Math.max(TOL_ABS, TOL_REL * Math.abs(gross));
-    const ok = Math.abs(selOmset) <= tol && Math.abs(selKek) <= tol;
-    out.push({ A, B, gross, biaya, beli, ambil, hppSold, ratio, omsetSeh, selOmset, laba, selKek, ok, nDays: inP.length });
-  }
+    const laciExp = legacy
+      ? startLaci + cash - opexLaci - w.laci                      // lama: semua penjualan masuk laci
+      : startLaci - ambil + setor - opexLaci - w.laci;
+    const kasirExp = legacy ? null : startKasir + ambil - setor + cash - opexKasir - w.kasir;
+
+    out.push({
+      c, legacy, gross, cash, qris, opexBiaya, opexStok, opexLaci, opexKasir,
+      opexTotal: opexBiaya + opexStok, startLaci, startKasir,
+      laciExp, kasirExp, physLaci, physKasir,
+      diffLaci: physLaci - laciExp,
+      diffKasir: legacy ? 0 : physKasir - kasirExp,
+      ambil, setor, wLaci: w.laci, wKasir: w.kasir
+    });
+    prev = { laci: physLaci, kasir: physKasir };
+  });
   return out;
 }
 
-function lociAt(date) {
-  let v = 0;
-  for (const d of days) { if (d.c.date <= date) v = d.actual; else break; }
-  return v;
+// Rekonsiliasi antara dua opname berurutan (A → B), per produk
+function computePeriods(opnameList, dayList, withdrawalsList) {
+  const ops = sortAsc(opnameList);
+  const out = [];
+  const lineMap = (op) => Object.fromEntries((op.lines || []).map((l) => [l.id, l]));
+  const W = (op) => num(op.hppValue) + num(op.bank) + num(op.cashLaci) + num(op.cashKasir);
+
+  for (let i = 1; i < ops.length; i++) {
+    const A = ops[i - 1], B = ops[i];
+    const inP = dayList.filter((d) => d.c.date > A.date && d.c.date <= B.date);
+    const gross = sumBy(inP, (d) => d.gross);
+    const biaya = sumBy(inP, (d) => d.opexBiaya);
+    const ambil = withdrawalsList
+      .filter((w) => w.date > A.date && w.date <= B.date)
+      .reduce((s, w) => s + (w.type === 'setor' ? -num(w.amount) : num(w.amount)), 0);
+
+    // Barang masuk per produk dari belanja kasir
+    const purch = {};
+    let purchAmt = 0;
+    inP.forEach((d) => (d.c.opex || []).forEach((o) => {
+      if (o.kind !== 'stok' || !o.productId) return;
+      purch[o.productId] = (purch[o.productId] || 0) + num(o.qty);
+      purchAmt += num(o.amount);
+    }));
+
+    const aMap = lineMap(A), bMap = lineMap(B);
+    const ids = new Set([...Object.keys(aMap), ...Object.keys(bMap), ...Object.keys(purch)]);
+    let hppSold = 0, omsetSeh = 0, purchHpp = 0, neg = false;
+    const perProduct = [];
+
+    ids.forEach((id) => {
+      const ln = bMap[id] || aMap[id] || { name: '(produk)', price: 0, hpp: 0 };
+      const awal = num(aMap[id]?.qty), masuk = num(purch[id]), akhir = num(bMap[id]?.qty);
+      const terjual = awal + masuk - akhir;
+      if (terjual < 0) neg = true;
+      const hpp = num(ln.hpp), price = num(ln.price);
+      const rev = terjual * price, hs = terjual * hpp;
+      hppSold += hs; omsetSeh += rev;
+      purchHpp += masuk * hpp;
+      perProduct.push({ id, name: ln.name, awal, masuk, akhir, terjual, price, hpp, rev, hs });
+    });
+
+    const premium = purchAmt - purchHpp;            // harga bayar belanja − nilai HPP barang yang masuk
+    const laba = gross - hppSold - biaya - premium;
+    const selOmset = gross - omsetSeh;
+    const selKek = (W(B) - W(A)) - (laba - ambil);
+
+    const tol = Math.max(TOL_ABS, TOL_REL * Math.abs(gross));
+    const ok = Math.abs(selOmset) <= tol && Math.abs(selKek) <= tol && !neg;
+    out.push({
+      A, B, gross, biaya, ambil, purchAmt, premium, hppSold, omsetSeh, selOmset, laba, selKek,
+      wA: W(A), wB: W(B), dW: W(B) - W(A), neg, ok, perProduct, nDays: inP.length
+    });
+  }
+  return out;
 }
 
 function latestWealth() {
   const last = sortAsc(opnames).slice(-1)[0];
   if (!last) return null;
-  const lastDay = days.slice(-1)[0];
-  return { op: last, laci: lastDay ? lastDay.actual : 0,
-    total: num(last.hppValue) + num(last.bank) + (lastDay ? lastDay.actual : 0) };
+  const total = num(last.hppValue) + num(last.bank) + num(last.cashLaci) + num(last.cashKasir);
+  return { op: last, total };
+}
+
+function recompute() {
+  days = computeDays(allClosings, withdrawals);
+  periods = computePeriods(opnames, days, withdrawals);
 }
 
 function buildBuckets(from, to) {
@@ -468,38 +537,181 @@ function getRange() {
 const inRange = (list, from, to) => list.filter((x) => x.date >= from && x.date <= to);
 
 // ============================================================
-// FORM TUTUP KASIR (kasir)
+// PRODUK
 // ============================================================
-function renderSaldoInfo() {
-  const hasPrev = !!kasSaldo;
-  $('saldoInfo').classList.toggle('hidden', !hasPrev);
-  $('startWrap').classList.toggle('hidden', hasPrev);
-  if (hasPrev) setText('saldoAwalTxt', rp(kasSaldo.actualCash));
+function renderProductPicker() { /* dipakai di baris belanja */ refreshProductSelects(); }
+
+function productOptions(selected = '') {
+  const active = products.filter((p) => p.active !== false);
+  const opts = active.map((p) =>
+    `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)}${p.needsPrice ? ' (belum ada harga)' : ''}</option>`).join('');
+  return `<option value="">Pilih produk...</option>${opts}<option value="__new__">+ Produk baru</option>`;
 }
 
-function opexEditHtml(desc = '', amount = '', drawer = true, kind = 'biaya') {
+function refreshProductSelects() {
+  document.querySelectorAll('.opex-product').forEach((sel) => {
+    const cur = sel.value;
+    sel.innerHTML = productOptions(cur);
+  });
+}
+
+function openNewProductSheet(onCreated) {
+  openSheet(`
+    <h3 class="sheet-title">Produk baru</h3>
+    <p class="hint">Harga jual dan HPP diisi owner. Produk ini ditandai "belum ada harga" sampai owner melengkapinya.</p>
+    <div class="field"><label for="npName">Nama produk</label><input type="text" id="npName" placeholder="mis. Es teh manis"></div>
+    <div class="field"><label for="npCat">Kategori</label><input type="text" id="npCat" placeholder="mis. Minuman"></div>
+    <button class="btn-primary" id="npSave">${ic('check')}Simpan produk</button>
+    <button class="btn-ghost" data-close>Batal</button>
+  `, () => {
+    $('npSave').onclick = async () => {
+      const name = $('npName').value.trim();
+      if (!name) return toast('Isi nama produk');
+      try {
+        const ref = await db.collection(C.products).add({
+          name, category: $('npCat').value.trim() || 'Umum',
+          price: 0, hpp: 0, active: true, needsPrice: true,
+          createdBy: profile.name, createdAt: TS()
+        });
+        await logAudit('produk_dibuat', name, 'Produk baru dari kasir, menunggu harga owner');
+        closeSheet();
+        if (onCreated) onCreated(ref.id);
+      } catch (err) { fail(err.message); }
+    };
+  });
+}
+
+function renderProductsTab() {
+  const el = $('productList');
+  if (!products.length) {
+    el.innerHTML = `<div class="empty">${ic('box')}<p>Belum ada produk. Tambahkan produk pertama.</p></div>`;
+    return;
+  }
+  el.innerHTML = products.map((p) => {
+    const margin = p.price ? Math.round(((num(p.price) - num(p.hpp)) / num(p.price)) * 100) : 0;
+    const flag = p.needsPrice ? `<span class="chip warn">Belum ada harga</span>` : `<span class="chip ${margin >= 0 ? 'ok' : 'no'}">Margin ${margin}%</span>`;
+    return `<div class="prod-card tap ${p.active === false ? 'off' : ''}" data-id="${p.id}">
+      <div class="prod-ic">${ic('tag')}</div>
+      <div class="prod-main"><strong>${esc(p.name)}</strong><small>${esc(p.category || 'Umum')} · HPP ${rp(p.hpp)}</small></div>
+      <div class="prod-price"><strong>${rp(p.price)}</strong>${flag}</div>
+    </div>`;
+  }).join('');
+}
+$('productList').addEventListener('click', (e) => {
+  const c = e.target.closest('.prod-card');
+  if (c) openProductSheet(c.dataset.id);
+});
+$('btnAddProduct').addEventListener('click', () => openProductSheet(null));
+
+function openProductSheet(id) {
+  const p = id ? products.find((x) => x.id === id) : null;
+  openSheet(`
+    <h3 class="sheet-title">${p ? 'Edit produk' : 'Produk baru'}</h3>
+    <div class="field"><label for="pName">Nama produk</label><input type="text" id="pName" value="${esc(p?.name || '')}"></div>
+    <div class="field"><label for="pCat">Kategori</label><input type="text" id="pCat" value="${esc(p?.category || '')}"></div>
+    <div class="row2">
+      <div class="field"><label for="pPrice">Harga jual</label><div class="money"><span>Rp</span><input type="number" id="pPrice" inputmode="numeric" min="0" value="${p ? num(p.price) : ''}"></div></div>
+      <div class="field"><label for="pHpp">HPP per unit</label><div class="money"><span>Rp</span><input type="number" id="pHpp" inputmode="numeric" min="0" value="${p ? num(p.hpp) : ''}"></div></div>
+    </div>
+    <p class="hint" id="pMargin"></p>
+    <button class="btn-primary" id="pSave">${ic('check')}Simpan</button>
+    ${p ? `<button class="btn-ghost" id="pToggle">${p.active === false ? 'Aktifkan produk' : 'Nonaktifkan produk'}</button>` : ''}
+    <button class="btn-ghost" data-close>Batal</button>
+  `, () => {
+    const prev = () => {
+      const price = num($('pPrice').value), hpp = num($('pHpp').value);
+      $('pMargin').textContent = price ? `Margin ${Math.round(((price - hpp) / price) * 100)}% · laba per unit ${rp(price - hpp)}` : '';
+    };
+    ['pPrice', 'pHpp'].forEach((x) => $(x).addEventListener('input', prev));
+    prev();
+    $('pSave').onclick = async () => {
+      const name = $('pName').value.trim();
+      if (!name) return toast('Nama produk wajib diisi');
+      const price = num($('pPrice').value), hpp = num($('pHpp').value);
+      if (price && hpp > price) return fail('HPP lebih besar dari harga jual. Periksa angka.', 'Periksa angka');
+      try {
+        const data = { name, category: $('pCat').value.trim() || 'Umum', price, hpp, needsPrice: !(price && hpp) };
+        if (p) {
+          await db.collection(C.products).doc(p.id).update(data);
+          await logAudit('produk_diubah', name, `harga ${rp(p.price)} → ${rp(price)}, HPP ${rp(p.hpp)} → ${rp(hpp)}`);
+        } else {
+          data.active = true;
+          data.createdBy = profile.name; data.createdAt = TS();
+          await db.collection(C.products).add(data);
+          await logAudit('produk_dibuat', name, `harga ${rp(price)}, HPP ${rp(hpp)}`);
+        }
+        closeSheet();
+        toast('Produk tersimpan');
+      } catch (err) { fail(err.message); }
+    };
+    if (p) $('pToggle').onclick = async () => {
+      const act = p.active === false;
+      await db.collection(C.products).doc(p.id).update({ active: act });
+      await logAudit(act ? 'produk_diaktifkan' : 'produk_dinonaktifkan', p.name, '');
+      closeSheet();
+      toast(act ? 'Produk diaktifkan' : 'Produk dinonaktifkan');
+    };
+  });
+}
+
+// ============================================================
+// FORM TUTUP KASIR
+// ============================================================
+function renderSaldoInfo() {
+  const hasFull = !!kasSaldo && kasSaldo.kasir !== undefined;
+  $('saldoInfo').classList.toggle('hidden', !hasFull);
+  $('startWrap').classList.toggle('hidden', hasFull);
+  if (hasFull) {
+    setText('saldoLaciTxt', rp(kasSaldo.laci));
+    setText('saldoKasirTxt', rp(kasSaldo.kasir));
+  }
+}
+
+function opexRowHtml() {
   return `<div class="opex-row">
     <div class="opex-top">
-      <input type="text" class="opex-desc" placeholder="Nama (mis. Gas 3kg, Es batu)" value="${esc(desc)}">
-      <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric" value="${amount}">
+      <select class="opex-kind">
+        <option value="biaya">Biaya</option>
+        <option value="stok">Belanja barang</option>
+      </select>
       <button type="button" class="icon-btn" aria-label="Hapus">${ic('x')}</button>
     </div>
+    <div class="ox-biaya"><input type="text" class="opex-desc" placeholder="Keterangan (mis. Es kristal 3x)"></div>
+    <div class="ox-stok hidden">
+      <select class="opex-product">${productOptions()}</select>
+      <input type="number" class="opex-qty" inputmode="numeric" min="1" placeholder="Jumlah">
+    </div>
     <div class="opex-meta">
-      <select class="opex-kind">
-        <option value="biaya" ${kind !== 'stok' ? 'selected' : ''}>Biaya operasional</option>
-        <option value="stok" ${kind === 'stok' ? 'selected' : ''}>Belanja stok</option>
-      </select>
-      <label class="switch-row"><input type="checkbox" class="opex-drawer" ${drawer ? 'checked' : ''}><span class="switch"></span>Dari laci</label>
+      <div class="money mini"><span>Rp</span><input type="number" class="opex-amount" inputmode="numeric" min="0" placeholder="Harga bayar"></div>
+      <select class="opex-pocket"><option value="laci">Dari laci</option><option value="kasir">Dari kasir</option></select>
     </div>
   </div>`;
 }
 
+function syncOpexRow(row) {
+  const stok = row.querySelector('.opex-kind').value === 'stok';
+  row.querySelector('.ox-biaya').classList.toggle('hidden', stok);
+  row.querySelector('.ox-stok').classList.toggle('hidden', !stok);
+}
+
+$('opexList').addEventListener('change', (e) => {
+  const row = e.target.closest('.opex-row');
+  if (!row) return;
+  if (e.target.classList.contains('opex-kind')) syncOpexRow(row);
+  if (e.target.classList.contains('opex-product') && e.target.value === '__new__') {
+    e.target.value = '';
+    openNewProductSheet((newId) => {
+      refreshProductSelects();
+      row.querySelector('.opex-product').value = newId;
+    });
+  }
+});
 $('opexList').addEventListener('click', (e) => {
   const b = e.target.closest('.icon-btn');
   if (b) b.closest('.opex-row').remove();
 });
 $('btnAddOpex').addEventListener('click', () => {
-  $('opexList').insertAdjacentHTML('beforeend', opexEditHtml());
+  $('opexList').insertAdjacentHTML('beforeend', opexRowHtml());
 });
 
 $('proofInput').addEventListener('change', async (e) => {
@@ -509,9 +721,7 @@ $('proofInput').addEventListener('change', async (e) => {
     try {
       const { blob, b64 } = await preparePhoto(f, PHOTO_SIDE, PHOTO_QUALITY);
       pendingPhotos.push({ blob, b64, url: URL.createObjectURL(blob), orig: f.size });
-    } catch (err) {
-      await fail(err.message, 'Foto gagal diproses');
-    }
+    } catch (err) { await fail(err.message, 'Foto gagal diproses'); }
   }
   renderPhotos();
 });
@@ -530,10 +740,9 @@ function renderPhotos() {
     </label>`;
   $('photoGrid').innerHTML = tiles + add;
   if (!pendingPhotos.length) {
-    $('photoHint').textContent = 'Foto nota atau bukti belanja. Otomatis dikompres sebelum disimpan.';
+    $('photoHint').textContent = 'Foto nota atau bukti belanja. Otomatis dikompres sebelum dikirim.';
   } else {
-    const before = pendingPhotos.reduce((s, p) => s + p.orig, 0);
-    const after = pendingPhotos.reduce((s, p) => s + p.blob.size, 0);
+    const before = sumBy(pendingPhotos, (p) => p.orig), after = sumBy(pendingPhotos, (p) => p.blob.size);
     $('photoHint').textContent = `${pendingPhotos.length} foto · ${fmtSize(before)} → ${fmtSize(after)} setelah dikompres`;
   }
 }
@@ -546,30 +755,46 @@ $('photoGrid').addEventListener('click', (e) => {
   renderPhotos();
 });
 
-function readClosingForm() {
-  const opex = [];
+// Membaca dan memvalidasi baris belanja
+function readOpexRows() {
+  const rows = [];
+  let error = '';
   document.querySelectorAll('#opexList .opex-row').forEach((r) => {
-    const desc = r.querySelector('.opex-desc').value.trim();
-    const amount = num(r.querySelector('.opex-amount').value);
-    const fromDrawer = r.querySelector('.opex-drawer').checked;
     const kind = r.querySelector('.opex-kind').value;
-    if (desc || amount) opex.push({ desc, amount, fromDrawer, kind });
+    const amount = num(r.querySelector('.opex-amount').value);
+    const pocket = r.querySelector('.opex-pocket').value;
+    if (kind === 'stok') {
+      const pid = r.querySelector('.opex-product').value;
+      const qty = num(r.querySelector('.opex-qty').value);
+      if (!pid || qty <= 0) error = error || 'Belanja barang harus memilih produk dan jumlahnya.';
+      const p = products.find((x) => x.id === pid);
+      rows.push({ kind, pocket, amount, productId: pid, qty, desc: p ? p.name : '' });
+    } else {
+      const desc = r.querySelector('.opex-desc').value.trim();
+      if (!desc && !amount) return;
+      rows.push({ kind, pocket, amount, desc });
+    }
   });
-  const cashRevenue = num($('cashRevenue').value);
-  const qrisRevenue = num($('qrisRevenue').value);
-  const sumIf = (fn) => opex.filter(fn).reduce((s, o) => s + o.amount, 0);
-  const startingCash = kasSaldo ? num(kasSaldo.actualCash) : num($('startingCash').value);
+  return { rows, error };
+}
+
+function readClosingForm() {
+  const { rows } = readOpexRows();
+  const cashRevenue = num($('cashRevenue').value), qrisRevenue = num($('qrisRevenue').value);
+  const ambilLaci = num($('ambilLaci').value), setorKasir = num($('setorKasir').value);
+  const k = kasSaldo && kasSaldo.kasir !== undefined;
+  const startLaci = k ? num(kasSaldo.laci) : num($('startLaci').value);
+  const startKasir = k ? num(kasSaldo.kasir) : num($('startKasir').value);
   return {
     date: todayStr(),
-    startingCash,
-    cashRevenue, qrisRevenue,
-    grossRevenue: cashRevenue + qrisRevenue,
-    opex,
-    opexTotal: sumIf(() => true),
-    opexDrawer: sumIf((o) => o.fromDrawer),
-    opexBiaya: sumIf((o) => o.kind !== 'stok'),
-    opexStok: sumIf((o) => o.kind === 'stok'),
-    actualCash: num($('actualCash').value),
+    startLaci, startKasir,
+    cashRevenue, qrisRevenue, grossRevenue: cashRevenue + qrisRevenue,
+    ambilLaci, setorKasir,
+    opex: rows,
+    opexBiaya: sumBy(rows.filter((o) => o.kind !== 'stok'), (o) => o.amount),
+    opexStok: sumBy(rows.filter((o) => o.kind === 'stok'), (o) => o.amount),
+    actualLaci: num($('actualLaci').value),
+    actualKasir: num($('actualKasir').value),
     checklist: { counted: $('chkCounted').checked, photos: $('chkPhotos').checked },
     notes: $('notes').value.trim()
   };
@@ -592,9 +817,12 @@ function resetClosingForm() {
 
 $('formClosing').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const { error } = readOpexRows();
+  if (error) return fail(error, 'Lengkapi belanja');
+  const hasFull = kasSaldo && kasSaldo.kasir !== undefined;
+  if (!hasFull && (!$('startLaci').value || !$('startKasir').value)) return fail('Isi saldo awal laci dan kasir untuk laporan pertama.', 'Lengkapi data');
   if (!$('cashRevenue').value || !$('qrisRevenue').value) return fail('Isi penjualan tunai dan QRIS (boleh 0).', 'Lengkapi data');
-  if (!$('actualCash').value) return fail('Hitung uang fisik di laci terlebih dahulu.', 'Lengkapi data');
-  if (!kasSaldo && !$('startingCash').value) return fail('Ini laporan pertama, isi saldo awal laci.', 'Lengkapi data');
+  if (!$('actualLaci').value || !$('actualKasir').value) return fail('Hitung uang di laci dan di kasir.', 'Lengkapi data');
   if (!$('chkCounted').checked || !$('chkPhotos').checked) return fail('Lengkapi checklist akhir hari.', 'Lengkapi data');
   if (!pendingPhotos.length && !(await ask('Belum ada foto nota. Tetap kirim laporan?', 'Tanpa foto'))) return;
 
@@ -603,7 +831,6 @@ $('formClosing').addEventListener('submit', async (e) => {
   let saved = false;
   setBusy(true, 'Menyimpan laporan...');
   try {
-    // 1) Foto ke Drive dulu (jika mode drive). Jika gagal, laporan belum tersimpan dan bisa dikirim ulang.
     let photoUrls = [];
     if (PHOTO_STORAGE === 'drive') {
       for (let i = 0; i < pendingPhotos.length; i++) {
@@ -613,7 +840,6 @@ $('formClosing').addEventListener('submit', async (e) => {
       }
     }
 
-    // 2) Laporan dan saldo laci disimpan bersamaan (atomik)
     setBusy(true, 'Menyimpan laporan...');
     const batch = db.batch();
     batch.set(ref, {
@@ -624,11 +850,12 @@ $('formClosing').addEventListener('submit', async (e) => {
       proofImages: photoUrls,
       createdAt: TS()
     });
-    batch.set(db.collection(C.kas).doc('saldo'), { actualCash: data.actualCash, date: data.date, by: profile.name });
+    batch.set(db.collection(C.kas).doc('saldo'), {
+      laci: data.actualLaci, kasir: data.actualKasir, date: data.date, by: profile.name
+    });
     await batch.commit();
     saved = true;
 
-    // 3) Mode firestore: foto disimpan di subkoleksi laporan
     if (PHOTO_STORAGE === 'firestore') {
       for (let i = 0; i < pendingPhotos.length; i++) {
         setBusy(true, `Mengunggah foto ${i + 1}/${pendingPhotos.length}...`);
@@ -661,36 +888,31 @@ function renderDashboard() {
   const dayR = days.filter((d) => d.c.date >= from && d.c.date <= to);
   const perR = periods.filter((p) => p.B.date >= from && p.B.date <= to);
   const wdR = inRange(withdrawals, from, to);
-  const sumD = (fn) => dayR.reduce((s, d) => s + fn(d), 0);
-  const sumP = (fn) => perR.reduce((s, p) => s + fn(p), 0);
+  const sD = (fn) => sumBy(dayR, fn);
+  const sP = (fn) => sumBy(perR, fn);
 
-  const gross = sumD((d) => d.gross);
+  const gross = sD((d) => d.gross);
   setText('sumTotal', rp(gross));
-  setText('sumCash', rp(sumD((d) => d.cash)));
-  setText('sumQris', rp(sumD((d) => d.qris)));
+  setText('sumCash', rp(sD((d) => d.cash)));
+  setText('sumQris', rp(sD((d) => d.qris)));
 
-  setText('cardBiaya', rp(sumD((d) => d.opexBiaya)));
-  setText('cardStokBeli', rp(sumD((d) => d.opexStok)));
-  setText('cardAmbil', rp(wdR.reduce((s, w) => s + (w.type === 'setor' ? -num(w.amount) : num(w.amount)), 0)));
-
-  const kas = sumD((d) => d.diff);
-  setText('cardKas', signedRp(kas));
-  $('cardKas').parentElement.classList.toggle('alert', kas !== 0);
-
-  setText('cardOmsetSeh', rp(sumP((p) => p.omsetSeh)));
-  const selO = sumP((p) => p.selOmset);
-  setText('cardSelOmset', signedRp(selO));
+  setText('cardOmsetSeh', rp(sP((p) => p.omsetSeh)));
+  setText('cardSelOmset', signedRp(sP((p) => p.selOmset)));
   $('cardSelOmset').parentElement.classList.toggle('alert', perR.some((p) => !p.ok));
-
-  const selK = sumP((p) => p.selKek);
-  setText('cardSelKek', signedRp(selK));
+  const kl = sD((d) => d.diffLaci), kk = sD((d) => d.diffKasir);
+  setText('cardKasLaci', signedRp(kl));
+  $('cardKasLaci').parentElement.classList.toggle('alert', kl !== 0);
+  setText('cardKasKasir', signedRp(kk));
+  $('cardKasKasir').parentElement.classList.toggle('alert', kk !== 0);
+  setText('cardSelKek', signedRp(sP((p) => p.selKek)));
   $('cardSelKek').parentElement.classList.toggle('alert', perR.some((p) => !p.ok));
-
+  setText('cardBiaya', rp(sD((d) => d.opexBiaya)));
+  setText('cardLaba', rp(sP((p) => p.laba)));
   const w = latestWealth();
   setText('cardKekayaan', w ? rp(w.total) : 'Belum ada opname');
 
   renderAlerts(dayR, perR);
-  renderPayment(gross, sumD((d) => d.cash), sumD((d) => d.qris));
+  renderPayment(gross, sD((d) => d.cash), sD((d) => d.qris));
   renderTrend(dayR, from, to);
   renderRecon(perR);
   renderWithdrawals(wdR);
@@ -699,20 +921,21 @@ function renderDashboard() {
 
 function renderAlerts(dayR, perR) {
   const items = [];
-  dayR.filter((d) => d.diff !== 0).forEach((d) => items.push(`
-    <div class="alert-item tap" data-id="${d.c.id}">
+  dayR.filter((d) => d.diffLaci !== 0 || d.diffKasir !== 0).forEach((d) => {
+    const parts = [];
+    if (d.diffLaci) parts.push(`Laci ${signedRp(d.diffLaci)}`);
+    if (d.diffKasir) parts.push(`Kasir ${signedRp(d.diffKasir)}`);
+    items.push(`<div class="alert-item tap" data-id="${d.c.id}">
       <span class="alert-ic">${ic('alert')}</span>
-      <div><strong>${fmtDate(d.c.date)} · ${esc(d.c.kasirName || '-')}</strong>
-        <small>${d.diff < 0 ? `Kas laci kurang ${rp(-d.diff)}` : `Kas laci lebih ${rp(d.diff)}`}</small></div>
-      <span class="chev">${ic('chev')}</span>
-    </div>`));
+      <div><strong>${fmtDate(d.c.date)} · ${esc(d.c.kasirName || '-')}</strong><small>${parts.join(' · ')}</small></div>
+      <span class="chev">${ic('chev')}</span></div>`);
+  });
   perR.filter((p) => !p.ok).forEach((p) => items.push(`
     <div class="alert-item tap" data-op="${p.B.id}">
       <span class="alert-ic">${ic('alert')}</span>
       <div><strong>Opname ${fmtShort(p.A.date)} – ${fmtShort(p.B.date)}</strong>
-        <small>Selisih omset ${signedRp(p.selOmset)} · selisih kekayaan ${signedRp(p.selKek)}</small></div>
-      <span class="chev">${ic('chev')}</span>
-    </div>`));
+        <small>${p.neg ? 'Ada produk dengan stok lebih banyak dari yang tersedia · ' : ''}Omset ${signedRp(p.selOmset)} · kekayaan ${signedRp(p.selKek)}</small></div>
+      <span class="chev">${ic('chev')}</span></div>`));
   $('alertList').innerHTML = items.length ? items.join('')
     : `<div class="ok-banner">${ic('check')}Semua laporan dalam periode ini sudah sesuai</div>`;
 }
@@ -729,7 +952,6 @@ function renderPayment(gross, cash, qris) {
     <tr><td>Tunai</td><td class="r">${rp(cash)}</td><td class="r">${pct(cash)}</td></tr>
     <tr><td>QRIS / Transfer</td><td class="r">${rp(qris)}</td><td class="r">${pct(qris)}</td></tr>
     <tr class="total"><td>Total</td><td class="r">${rp(gross)}</td><td class="r">${gross ? '100%' : '0%'}</td></tr>`;
-
   if (typeof Chart === 'undefined') return;
   charts.dist?.destroy();
   charts.dist = new Chart($('chartDist'), {
@@ -746,15 +968,15 @@ const charts = {};
 function renderTrend(dayR, from, to) {
   if (typeof Chart === 'undefined') return;
   const buckets = buildBuckets(from, to);
-  const sumB = (b, fn) => dayR.filter((d) => b.match(d.c.date)).reduce((s, d) => s + fn(d), 0);
+  const sB = (b, fn) => sumBy(dayR.filter((d) => b.match(d.c.date)), fn);
   charts.trend?.destroy();
   charts.trend = new Chart($('chartTrend'), {
     type: 'bar',
     data: {
       labels: buckets.map((b) => b.label),
       datasets: [
-        { label: 'Omset tercatat', data: buckets.map((b) => sumB(b, (d) => d.gross)), backgroundColor: GREEN, borderRadius: 4 },
-        { label: 'Pengeluaran', data: buckets.map((b) => sumB(b, (d) => d.opexTotal)), backgroundColor: GOLD, borderRadius: 4 }
+        { label: 'Omset tercatat', data: buckets.map((b) => sB(b, (d) => d.gross)), backgroundColor: GREEN, borderRadius: 4 },
+        { label: 'Pengeluaran', data: buckets.map((b) => sB(b, (d) => d.opexTotal)), backgroundColor: GOLD, borderRadius: 4 }
       ]
     },
     options: {
@@ -788,30 +1010,25 @@ function renderWithdrawals(wd) {
       <span class="rc-ic">${ic('wallet')}</span>
       <div class="rc-main">
         <strong>${w.type === 'setor' ? 'Setor' : 'Ambil'} ${rp(w.amount)}</strong>
-        <small>${fmtDate(w.date)} · ${w.fromDrawer === false ? 'bukan dari laci' : 'dari laci'} · ${esc(w.note || 'Tanpa catatan')}</small>
+        <small>${fmtDate(w.date)} · dari ${w.pocket === 'kasir' ? 'kasir' : 'laci'} · ${esc(w.note || 'Tanpa catatan')}</small>
       </div>
-      <button class="rc-del" data-del-w="${w.id}" aria-label="Hapus">${ic('trash')}</button>
     </div>`).join('') : `<p class="muted center pad-y">Belum ada pencatatan pada periode ini</p>`;
 }
-$('withdrawList').addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-del-w]');
-  if (!b) return;
-  if (!(await ask('Hapus catatan ini? Perhitungan kas akan berubah.', 'Hapus catatan', 'danger', 'Hapus'))) return;
-  try { await db.collection(C.withdrawals).doc(b.dataset.delW).delete(); toast('Catatan dihapus'); }
-  catch (err) { fail(err.message); }
-});
 
 $('btnAddWithdraw').addEventListener('click', () => {
   openSheet(`
-    <h3 class="sheet-title">Pengambilan / setoran owner</h3>
-    <p class="hint">Dicatat agar selisih kas tidak dianggap kebocoran. Setoran modal dicatat sebagai "Setor".</p>
+    <h3 class="sheet-title">Ambil &amp; setor owner</h3>
+    <p class="hint">Dicatat supaya tidak dianggap kebocoran. Pencatatan tidak bisa dihapus, hanya ditambah.</p>
     <div class="row2">
       <div class="field"><label for="wdType">Jenis</label>
         <select id="wdType"><option value="ambil">Ambil</option><option value="setor">Setor</option></select></div>
-      <div class="field"><label for="wdDate">Tanggal</label><input type="date" id="wdDate" value="${todayStr()}"></div>
+      <div class="field"><label for="wdPocket">Dari</label>
+        <select id="wdPocket"><option value="laci">Laci</option><option value="kasir">Kasir</option></select></div>
     </div>
-    <div class="field"><label for="wdAmount">Jumlah</label><div class="money"><span>Rp</span><input type="number" id="wdAmount" inputmode="numeric" min="1"></div></div>
-    <label class="switch-row sheet-switch"><input type="checkbox" id="wdLaci" checked><span class="switch"></span>Diambil dari uang laci</label>
+    <div class="row2">
+      <div class="field"><label for="wdDate">Tanggal</label><input type="date" id="wdDate" value="${todayStr()}"></div>
+      <div class="field"><label for="wdAmount">Jumlah</label><div class="money"><span>Rp</span><input type="number" id="wdAmount" inputmode="numeric" min="1"></div></div>
+    </div>
     <div class="field"><label for="wdNote">Catatan</label><input type="text" id="wdNote" placeholder="mis. setoran ke bank"></div>
     <button class="btn-primary" id="wdSave">${ic('check')}Simpan</button>
   `, () => {
@@ -819,11 +1036,12 @@ $('btnAddWithdraw').addEventListener('click', () => {
       const amount = num($('wdAmount').value);
       if (amount <= 0) return toast('Isi jumlah');
       try {
-        await db.collection(C.withdrawals).add({
-          type: $('wdType').value, date: $('wdDate').value, amount,
-          fromDrawer: $('wdLaci').checked, note: $('wdNote').value.trim(),
-          by: profile.name, createdAt: TS()
-        });
+        const data = {
+          type: $('wdType').value, pocket: $('wdPocket').value, date: $('wdDate').value, amount,
+          note: $('wdNote').value.trim(), by: profile.name, createdAt: TS()
+        };
+        await db.collection(C.withdrawals).add(data);
+        await logAudit('ambil_setor', `${data.type} ${rp(amount)} dari ${data.pocket}`, data.note || '');
         closeSheet();
         toast('Tersimpan');
       } catch (err) { fail(err.message); }
@@ -835,13 +1053,12 @@ function renderClosingList(dayR) {
   const el = $('closingList');
   if (!dayR.length) { el.innerHTML = `<p class="muted center pad-y">Belum ada laporan pada periode ini</p>`; return; }
   el.innerHTML = dayR.map((d) => {
-    const st = d.diff === 0 ? `<span class="chip ok">Pas</span>`
-      : d.diff < 0 ? `<span class="chip no">Kurang ${rp(-d.diff)}</span>`
-      : `<span class="chip warn">Lebih ${rp(d.diff)}</span>`;
+    const bad = d.diffLaci !== 0 || d.diffKasir !== 0;
+    const st = bad ? `<span class="chip no">Cek kas</span>` : `<span class="chip ok">Pas</span>`;
     return `<div class="closing-card tap" data-id="${d.c.id}">
       <div>
         <div class="cc-head"><strong>${fmtDate(d.c.date)}</strong>${st}</div>
-        <small>${esc(d.c.kasirName || '-')} · Omset ${rp(d.gross)} · Pengeluaran ${rp(d.opexTotal)}</small>
+        <small>${esc(d.c.kasirName || '-')} · Omset ${rp(d.gross)} · Biaya ${rp(d.opexBiaya)} · Belanja ${rp(d.opexStok)}</small>
       </div>
       <span class="chev">${ic('chev')}</span>
     </div>`;
@@ -860,11 +1077,8 @@ function openClosingDetail(id) {
   if (!d) return;
   const c = d.c;
   const opexHtml = (c.opex || []).map((o) => `
-    <div class="line"><span>${esc(o.desc || '-')}<small>${o.kind === 'stok' ? 'belanja stok' : 'biaya'} · ${o.fromDrawer ? 'dari laci' : 'bukan dari laci'}</small></span><b>${rp(o.amount)}</b></div>`).join('')
+    <div class="line"><span>${esc(o.desc || '-')}<small>${o.kind === 'stok' ? `belanja barang${o.qty ? ` · ${o.qty} unit` : ''}` : 'biaya'} · dari ${pocketOf(o) === 'kasir' ? 'kasir' : 'laci'}</small></span><b>${rp(o.amount)}</b></div>`).join('')
     || `<p class="muted">Tidak ada pengeluaran</p>`;
-  const ck = c.checklist || {};
-  const chk = [['counted', 'Uang dihitung'], ['photos', 'Nota difoto']]
-    .map(([key, label]) => `<span class="chip ${ck[key] ? 'ok' : 'no'}">${label}</span>`).join(' ');
   const legacy = (c.proofImages || []).map((u) => `<img class="photo-mini" src="${esc(u)}" data-url="${esc(u)}" alt="Nota">`).join('');
 
   openSheet(`
@@ -878,34 +1092,43 @@ function openClosingDetail(id) {
       <div class="line total"><span>Omset tercatat</span><b>${rp(d.gross)}</b></div>
     </div>
 
-    <h4 class="sub-hd">Kas laci</h4>
+    ${d.legacy ? '' : `
+    <h4 class="sub-hd">Kantong laci</h4>
     <div class="sum-block">
-      <div class="line"><span>Saldo awal (uang fisik kemarin)</span><b>${rp(d.startLaci)}</b></div>
-      <div class="line"><span>+ Tunai</span><b>${rp(d.cash)}</b></div>
-      <div class="line"><span>− Pengeluaran dari laci</span><b>${rp(d.opexDrawer)}</b></div>
-      <div class="line"><span>− Ambil owner dari laci</span><b>${rp(d.ambilLaci)}</b></div>
-      <div class="line"><span>Seharusnya di laci</span><b>${rp(d.expected)}</b></div>
-      <div class="line"><span>Uang fisik</span><b>${rp(c.actualCash)}</b></div>
-      <div class="line total"><span>Selisih kas</span><b class="${d.diff === 0 ? 'ok' : d.diff < 0 ? 'no' : 'warn'}">${signedRp(d.diff)}</b></div>
+      <div class="line"><span>Saldo awal laci</span><b>${rp(d.startLaci)}</b></div>
+      <div class="line"><span>− Ke kasir</span><b>${rp(d.ambil)}</b></div>
+      <div class="line"><span>+ Dari kasir</span><b>${rp(d.setor)}</b></div>
+      <div class="line"><span>− Biaya &amp; belanja dari laci</span><b>${rp(d.opexLaci)}</b></div>
+      <div class="line"><span>Seharusnya di laci</span><b>${rp(d.laciExp)}</b></div>
+      <div class="line"><span>Uang fisik di laci</span><b>${rp(d.physLaci)}</b></div>
+      <div class="line total"><span>Selisih laci</span><b class="${d.diffLaci === 0 ? 'ok' : d.diffLaci < 0 ? 'no' : 'warn'}">${signedRp(d.diffLaci)}</b></div>
     </div>
 
-    <h4 class="sub-hd">Belanja & biaya</h4>
+    <h4 class="sub-hd">Kantong kasir</h4>
     <div class="sum-block">
-      <div class="line"><span>Belanja stok</span><b>${rp(d.opexStok)}</b></div>
+      <div class="line"><span>Saldo awal kasir</span><b>${rp(d.startKasir)}</b></div>
+      <div class="line"><span>+ Dari laci</span><b>${rp(d.ambil)}</b></div>
+      <div class="line"><span>+ Tunai hari ini</span><b>${rp(d.cash)}</b></div>
+      <div class="line"><span>− Setor ke laci</span><b>${rp(d.setor)}</b></div>
+      <div class="line"><span>− Biaya &amp; belanja dari kasir</span><b>${rp(d.opexKasir)}</b></div>
+      <div class="line"><span>Seharusnya di kasir</span><b>${rp(d.kasirExp)}</b></div>
+      <div class="line"><span>Uang fisik di kasir</span><b>${rp(d.physKasir)}</b></div>
+      <div class="line total"><span>Selisih kasir</span><b class="${d.diffKasir === 0 ? 'ok' : d.diffKasir < 0 ? 'no' : 'warn'}">${signedRp(d.diffKasir)}</b></div>
+    </div>`}
+
+    <h4 class="sub-hd">Belanja &amp; biaya</h4>
+    <div class="sum-block">
+      <div class="line"><span>Belanja barang (masuk stok)</span><b>${rp(d.opexStok)}</b></div>
       <div class="line"><span>Biaya operasional</span><b>${rp(d.opexBiaya)}</b></div>
       ${opexHtml}
     </div>
-
-    <h4 class="sub-hd">Checklist</h4>
-    <p>${chk}</p>
 
     ${c.notes ? `<h4 class="sub-hd">Catatan kasir</h4><p class="hint">${esc(c.notes)}</p>` : ''}
 
     <h4 class="sub-hd">Foto nota</h4>
     <div class="photo-row" id="detailPhotos">${legacy || '<p class="muted">Memuat foto...</p>'}</div>
 
-    <button class="btn-outline" data-edit="${c.id}">${ic('edit')}Edit laporan</button>
-    <button class="btn-danger" data-del="${c.id}">${ic('trash')}Hapus laporan</button>
+    <button class="btn-outline" data-edit="${c.id}">${ic('edit')}Edit laporan (dicatat)</button>
     <button class="btn-ghost" data-close>Tutup</button>
   `, () => {
     db.collection(C.closings).doc(c.id).collection('photos').get().then((snap) => {
@@ -914,89 +1137,67 @@ function openClosingDetail(id) {
       if (box) box.innerHTML = (legacy + html) || '<p class="muted">Tidak ada foto</p>';
     }).catch(() => {
       const box = $('detailPhotos');
-      if (box) box.innerHTML = legacy || '<p class="muted">Foto tidak bisa dimuat</p>';
+      if (box && !legacy) box.innerHTML = '<p class="muted">Foto tersimpan di Drive (lihat folder Kantin Barokah - Bukti Nota)</p>';
     });
   });
 }
 
+// Edit: hanya angka hitungan dan catatan. Alasan wajib. Perubahan dicatat dengan nilai sebelum dan sesudah.
 function openEditClosing(id) {
   const d = days.find((x) => x.c.id === id);
   if (!d) return;
   const c = d.c;
   openSheet(`
     <h3 class="sheet-title">Edit laporan</h3>
-    <p class="hint">${fmtDate(c.date)} · ${esc(c.kasirName || '-')}</p>
-
+    <p class="hint">Setiap perubahan dicatat di log aktivitas beserta nilai lama dan barunya. Alasan wajib diisi.</p>
     <div class="row2">
-      <div class="field"><label for="eCash">Tunai</label>
-        <div class="money"><span>Rp</span><input type="number" id="eCash" inputmode="numeric" value="${num(c.cashRevenue)}"></div></div>
-      <div class="field"><label for="eQris">QRIS</label>
-        <div class="money"><span>Rp</span><input type="number" id="eQris" inputmode="numeric" value="${num(c.qrisRevenue)}"></div></div>
+      <div class="field"><label for="eCash">Tunai</label><div class="money"><span>Rp</span><input type="number" id="eCash" inputmode="numeric" value="${num(c.cashRevenue)}"></div></div>
+      <div class="field"><label for="eQris">QRIS</label><div class="money"><span>Rp</span><input type="number" id="eQris" inputmode="numeric" value="${num(c.qrisRevenue)}"></div></div>
     </div>
-    <div class="field"><label for="eActual">Uang fisik di laci</label>
-      <div class="money"><span>Rp</span><input type="number" id="eActual" inputmode="numeric" value="${num(c.actualCash)}"></div></div>
-
-    <h4 class="sub-hd">Belanja & biaya</h4>
-    <div id="eOpex">${(c.opex || []).map((o) => opexEditHtml(o.desc, o.amount, o.fromDrawer, o.kind)).join('')}</div>
-    <button type="button" class="btn-outline" id="eAddOpex">${ic('plus')}Tambah belanja</button>
-
-    <div class="field" style="margin-top:14px"><label for="eNotes">Catatan</label>
-      <textarea id="eNotes" rows="2">${esc(c.notes || '')}</textarea></div>
-
+    <div class="row2">
+      <div class="field"><label for="eLaci">Uang fisik laci</label><div class="money"><span>Rp</span><input type="number" id="eLaci" inputmode="numeric" value="${num(c.actualLaci ?? c.actualCash)}"></div></div>
+      <div class="field"><label for="eKasir">Uang fisik kasir</label><div class="money"><span>Rp</span><input type="number" id="eKasir" inputmode="numeric" value="${num(c.actualKasir)}"></div></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="eAmbil">Laci → kasir</label><div class="money"><span>Rp</span><input type="number" id="eAmbil" inputmode="numeric" value="${num(c.ambilLaci)}"></div></div>
+      <div class="field"><label for="eSetor">Kasir → laci</label><div class="money"><span>Rp</span><input type="number" id="eSetor" inputmode="numeric" value="${num(c.setorKasir)}"></div></div>
+    </div>
+    <div class="field"><label for="eNotes">Catatan</label><textarea id="eNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+    <div class="field"><label for="eReason">Alasan perubahan (wajib)</label><input type="text" id="eReason" placeholder="mis. salah input tunai, sudah dicek ulang"></div>
     <button class="btn-primary" id="eSave">${ic('check')}Simpan perubahan</button>
     <button class="btn-ghost" data-close>Batal</button>
   `, () => {
-    $('eOpex').addEventListener('click', (e) => {
-      const b = e.target.closest('.icon-btn');
-      if (b) b.closest('.opex-row').remove();
-    });
-    $('eAddOpex').addEventListener('click', () => $('eOpex').insertAdjacentHTML('beforeend', opexEditHtml()));
-
     $('eSave').onclick = async () => {
-      const cashRevenue = num($('eCash').value), qrisRevenue = num($('eQris').value);
-      const opex = [...document.querySelectorAll('#eOpex .opex-row')].map((r) => ({
-        desc: r.querySelector('.opex-desc').value.trim(),
-        amount: num(r.querySelector('.opex-amount').value),
-        fromDrawer: r.querySelector('.opex-drawer').checked,
-        kind: r.querySelector('.opex-kind').value
-      })).filter((o) => o.desc || o.amount);
-      const sumIf = (fn) => opex.filter(fn).reduce((s, o) => s + o.amount, 0);
+      const reason = $('eReason').value.trim();
+      if (!reason) return toast('Isi alasan perubahan');
+      const next = {
+        cashRevenue: num($('eCash').value), qrisRevenue: num($('eQris').value),
+        actualLaci: num($('eLaci').value), actualKasir: num($('eKasir').value),
+        ambilLaci: num($('eAmbil').value), setorKasir: num($('eSetor').value),
+        notes: $('eNotes').value.trim()
+      };
+      next.grossRevenue = next.cashRevenue + next.qrisRevenue;
+      const before = {
+        cashRevenue: num(c.cashRevenue), qrisRevenue: num(c.qrisRevenue),
+        actualLaci: num(c.actualLaci ?? c.actualCash), actualKasir: num(c.actualKasir),
+        ambilLaci: num(c.ambilLaci), setorKasir: num(c.setorKasir)
+      };
+      const changes = Object.keys(before)
+        .filter((k) => before[k] !== next[k])
+        .map((k) => `${k} ${before[k]} → ${next[k]}`).join('; ');
+      if (!changes && next.notes === (c.notes || '')) return toast('Tidak ada perubahan');
       try {
-        await db.collection(C.closings).doc(c.id).update({
-          cashRevenue, qrisRevenue, grossRevenue: cashRevenue + qrisRevenue,
-          actualCash: num($('eActual').value),
-          opex,
-          opexTotal: sumIf(() => true),
-          opexDrawer: sumIf((o) => o.fromDrawer),
-          opexBiaya: sumIf((o) => o.kind !== 'stok'),
-          opexStok: sumIf((o) => o.kind === 'stok'),
-          notes: $('eNotes').value.trim(),
-          editedBy: profile.name,
-          editedAt: TS()
-        });
+        await db.collection(C.closings).doc(c.id).update({ ...next, editedBy: profile.name, editedAt: TS() });
+        await logAudit('laporan_diedit', c.date, `${changes || 'catatan'} · alasan: ${reason}`);
         closeSheet();
-        toast('Laporan diperbarui');
+        toast('Laporan diperbarui dan dicatat');
       } catch (err) { fail(err.message); }
     };
   });
 }
 
-async function deleteClosing(id) {
-  if (!(await ask('Hapus laporan ini beserta fotonya? Kasir bisa mengirim ulang untuk tanggal tersebut.', 'Hapus laporan', 'danger', 'Hapus'))) return;
-  try {
-    const ref = db.collection(C.closings).doc(id);
-    const photos = await ref.collection('photos').get();
-    const batch = db.batch();
-    photos.docs.forEach((p) => batch.delete(p.ref));
-    batch.delete(ref);
-    await batch.commit();
-    closeSheet();
-    toast('Laporan dihapus');
-  } catch (err) { fail(err.message); }
-}
-
 // ============================================================
-// OPNAME (owner)
+// OPNAME (rinci per produk)
 // ============================================================
 function renderOpnameTab() {
   if (profile?.role !== 'owner') return;
@@ -1007,14 +1208,11 @@ function renderOpnameTab() {
       <p class="hero-val">${rp(w.total)}</p>
       <div class="hero-split">
         <div><span>Stok (HPP)</span><b>${rp(w.op.hppValue)}</b></div>
+        <div><span>Laci + kasir</span><b>${rp(num(w.op.cashLaci) + num(w.op.cashKasir))}</b></div>
         <div><span>Bank</span><b>${rp(w.op.bank)}</b></div>
-        <div><span>Laci</span><b>${rp(w.laci)}</b></div>
       </div>
-    </section>
-    <button class="btn-primary" id="btnAddOpname2">${ic('scale')}Lakukan opname sekarang</button>`
-    : `<div class="empty">${ic('scale')}<p>Belum ada opname. Lakukan opname pertama untuk mulai menghitung rekonsiliasi.</p>
-       <button class="btn-primary" id="btnAddOpname2">${ic('scale')}Opname pertama</button></div>`;
-  $('btnAddOpname2').onclick = openOpnameSheet;
+    </section>`
+    : `<div class="empty">${ic('scale')}<p>Belum ada opname. Lakukan opname pertama untuk memulai rekonsiliasi.</p></div>`;
 
   const ops = sortAsc(opnames).reverse();
   $('opnameList').innerHTML = ops.length ? ops.map((o) => {
@@ -1023,7 +1221,7 @@ function renderOpnameTab() {
     return `<div class="closing-card tap" data-op="${o.id}">
       <div>
         <div class="cc-head"><strong>${fmtDate(o.date)}</strong>${st}</div>
-        <small>Stok HPP ${rp(o.hppValue)} · Jual ${rp(o.jualValue)} · Bank ${rp(o.bank)}</small>
+        <small>${(o.lines || []).length} produk · Stok HPP ${rp(o.hppValue)} · Jual ${rp(o.jualValue)}</small>
       </div>
       <span class="chev">${ic('chev')}</span>
     </div>`;
@@ -1036,37 +1234,71 @@ $('opnameList').addEventListener('click', (e) => {
 $('btnAddOpname').addEventListener('click', openOpnameSheet);
 
 function openOpnameSheet() {
+  const active = products.filter((p) => p.active !== false);
+  if (!active.length) return fail('Belum ada produk. Tambahkan produk dulu di menu Produk.', 'Belum ada produk');
+  const lastOp = sortAsc(opnames).slice(-1)[0];
+  const lastQty = (id) => (lastOp?.lines || []).find((l) => l.id === id)?.qty ?? '';
   openSheet(`
     <h3 class="sheet-title">Opname stok</h3>
-    <p class="hint">Hitung total nilai stok di toko, bukan per produk. Dua angka cukup: nilai pakai HPP dan nilai pakai harga jual.</p>
+    <p class="hint">Hitung jumlah setiap produk di toko, lalu isi uang di laci, di kasir, dan saldo bank.</p>
     <div class="field"><label for="opDate">Tanggal</label><input type="date" id="opDate" value="${todayStr()}"></div>
-    <div class="field"><label for="opHpp">Nilai stok dengan HPP</label>
-      <div class="money"><span>Rp</span><input type="number" id="opHpp" inputmode="numeric" min="0"></div></div>
-    <div class="field"><label for="opJual">Nilai stok dengan harga jual</label>
-      <div class="money"><span>Rp</span><input type="number" id="opJual" inputmode="numeric" min="0"></div></div>
-    <div class="field"><label for="opBank">Saldo bank / tabungan toko</label>
-      <div class="money"><span>Rp</span><input type="number" id="opBank" inputmode="numeric" min="0"></div></div>
-    <p class="hint" id="opPreview"></p>
+    <div class="stock-head"><span>Produk</span><span class="c">Qty</span><span class="c">Nilai HPP</span></div>
+    <div id="opLines">${active.map((p) => `
+      <div class="stock-row" data-id="${p.id}" data-hpp="${num(p.hpp)}" data-price="${num(p.price)}" data-name="${esc(p.name)}">
+        <div class="sr-name"><strong>${esc(p.name)}</strong><small>${p.needsPrice ? 'belum ada harga' : `jual ${rp(p.price)}`}</small></div>
+        <input type="number" class="sr-qty" inputmode="numeric" min="0" placeholder="0" value="${lastQty(p.id)}">
+        <span class="sr-val">${rp(0)}</span>
+      </div>`).join('')}</div>
+    <div class="sum-block">
+      <div class="line"><span>Nilai stok dengan HPP</span><b id="opHppTot">Rp 0</b></div>
+      <div class="line"><span>Nilai stok dengan harga jual</span><b id="opJualTot">Rp 0</b></div>
+    </div>
+    <div class="row2" style="margin-top:12px">
+      <div class="field"><label for="opLaci">Uang di laci</label><div class="money"><span>Rp</span><input type="number" id="opLaci" inputmode="numeric" min="0"></div></div>
+      <div class="field"><label for="opKasir">Uang di kasir</label><div class="money"><span>Rp</span><input type="number" id="opKasir" inputmode="numeric" min="0"></div></div>
+    </div>
+    <div class="field"><label for="opBank">Saldo bank / tabungan</label><div class="money"><span>Rp</span><input type="number" id="opBank" inputmode="numeric" min="0"></div></div>
     <div class="field"><label for="opNote">Catatan</label><input type="text" id="opNote" placeholder="mis. opname mingguan"></div>
     <button class="btn-primary" id="opSave">${ic('check')}Simpan opname</button>
+    <button class="btn-ghost" data-close>Batal</button>
   `, () => {
-    const preview = () => {
-      const h = num($('opHpp').value), j = num($('opJual').value);
-      $('opPreview').textContent = h && j
-        ? `Rasio harga jual / HPP ${(j / h).toFixed(2)}× · margin rata-rata ${Math.round((1 - h / j) * 100)}%`
-        : '';
+    const recalc = () => {
+      let hpp = 0, jual = 0;
+      document.querySelectorAll('#opLines .stock-row').forEach((r) => {
+        const q = num(r.querySelector('.sr-qty').value);
+        const vh = q * num(r.dataset.hpp), vj = q * num(r.dataset.price);
+        r.querySelector('.sr-val').textContent = rp(vh);
+        hpp += vh; jual += vj;
+      });
+      setText('opHppTot', rp(hpp));
+      setText('opJualTot', rp(jual));
     };
-    ['opHpp', 'opJual'].forEach((x) => $(x).addEventListener('input', preview));
+    $('opLines').addEventListener('input', recalc);
+    recalc();
+
     $('opSave').onclick = async () => {
-      const hpp = num($('opHpp').value), jual = num($('opJual').value);
-      if (!hpp || !jual) return toast('Isi nilai stok dengan HPP dan harga jual');
-      if (jual < hpp) return fail('Nilai dengan harga jual tidak boleh lebih kecil dari nilai HPP.', 'Periksa angka');
+      const lines = [];
+      let hpp = 0, jual = 0;
+      document.querySelectorAll('#opLines .stock-row').forEach((r) => {
+        const qty = num(r.querySelector('.sr-qty').value);
+        const price = num(r.dataset.price), hppU = num(r.dataset.hpp);
+        lines.push({ id: r.dataset.id, name: r.dataset.name, qty, price, hpp: hppU });
+        hpp += qty * hppU; jual += qty * price;
+      });
+      if (!$('opLaci').value || !$('opKasir').value) return toast('Isi uang di laci dan di kasir');
+      if (lines.some((l) => l.qty > 0 && (!l.price || !l.hpp))) {
+        return fail('Ada produk yang belum punya harga jual atau HPP. Lengkapi dulu di menu Produk.', 'Produk belum lengkap');
+      }
       try {
-        await db.collection(C.opname).add({
-          date: $('opDate').value, hppValue: hpp, jualValue: jual,
+        const data = {
+          date: $('opDate').value, lines,
+          hppValue: hpp, jualValue: jual,
+          cashLaci: num($('opLaci').value), cashKasir: num($('opKasir').value),
           bank: num($('opBank').value), note: $('opNote').value.trim(),
-          by: profile.name, createdAt: TS()
-        });
+          by: profile.name, byUid: profile.uid, createdAt: TS()
+        };
+        await db.collection(C.opname).add(data);
+        await logAudit('opname_dibuat', data.date, `stok HPP ${rp(hpp)}, jual ${rp(jual)}, laci ${rp(data.cashLaci)}, kasir ${rp(data.cashKasir)}, bank ${rp(data.bank)}`);
         closeSheet();
         toast('Opname disimpan');
       } catch (err) { fail(err.message); }
@@ -1078,43 +1310,54 @@ function openOpnameDetail(id) {
   const o = opnames.find((x) => x.id === id);
   if (!o) return;
   const p = periods.find((x) => x.B.id === id);
+  const lines = (o.lines || []).map((l) => `
+    <tr><td>${esc(l.name)}</td><td class="c">${num(l.qty)}</td><td class="r">${rp(num(l.qty) * num(l.hpp))}</td><td class="r">${rp(num(l.qty) * num(l.price))}</td></tr>`).join('')
+    || `<tr><td colspan="4" class="muted center">Opname lama tanpa rincian produk</td></tr>`;
+
   const body = p ? `
-    <h4 class="sub-hd">Periode ${fmtShort(p.A.date)} – ${fmtShort(p.B.date)} (${p.nDays} laporan)</h4>
+    <h4 class="sub-hd">Per produk ${fmtShort(p.A.date)} – ${fmtShort(p.B.date)}</h4>
+    <div class="table-wrap sheet-tbl"><table class="tbl">
+      <thead><tr><th>Produk</th><th class="c">Awal</th><th class="c">Masuk</th><th class="c">Akhir</th><th class="c">Terjual</th><th class="r">Omset</th></tr></thead>
+      <tbody>${p.perProduct.map((d) => `<tr>
+        <td>${esc(d.name)}</td><td class="c">${d.awal}</td><td class="c">${d.masuk}</td><td class="c">${d.akhir}</td>
+        <td class="c ${d.terjual < 0 ? 'no' : ''}"><b>${d.terjual}</b></td><td class="r">${rp(d.rev)}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <h4 class="sub-hd">Omset</h4>
     <div class="sum-block">
       <div class="line"><span>Omset tercatat</span><b>${rp(p.gross)}</b></div>
-      <div class="line"><span>HPP barang terjual (stok awal + belanja − stok akhir)</span><b>${rp(p.hppSold)}</b></div>
-      <div class="line"><span>Rasio harga jual / HPP</span><b>${p.ratio.toFixed(2)}×</b></div>
-      <div class="line total"><span>Omset seharusnya dari stok</span><b>${rp(p.omsetSeh)}</b></div>
+      <div class="line"><span>Omset seharusnya dari stok</span><b>${rp(p.omsetSeh)}</b></div>
       <div class="line total"><span>Selisih omset</span><b class="${p.selOmset < 0 ? 'no' : 'ok'}">${signedRp(p.selOmset)}</b></div>
     </div>
-    <h4 class="sub-hd">Cek kekayaan</h4>
+    <h4 class="sub-hd">Laba &amp; kekayaan</h4>
     <div class="sum-block">
+      <div class="line"><span>HPP barang terjual</span><b>${rp(p.hppSold)}</b></div>
       <div class="line"><span>Biaya operasional</span><b>${rp(p.biaya)}</b></div>
-      <div class="line"><span>Laba bersih periode</span><b>${rp(p.laba)}</b></div>
+      <div class="line"><span>Selisih harga beli vs HPP</span><b>${rp(p.premium)}</b></div>
+      <div class="line"><span>Laba periode</span><b>${rp(p.laba)}</b></div>
+      <div class="line"><span>Kekayaan awal → akhir</span><b>${rp(p.wA)} → ${rp(p.wB)}</b></div>
       <div class="line"><span>Ambil owner (bersih)</span><b>${rp(p.ambil)}</b></div>
       <div class="line total"><span>Selisih kekayaan</span><b class="${p.selKek < 0 ? 'no' : 'ok'}">${signedRp(p.selKek)}</b></div>
     </div>
-    <p class="hint">${p.ok ? 'Selisih berada dalam batas wajar.' : 'Selisih di atas batas wajar. Periksa laporan harian dan belanja pada periode ini.'}</p>`
+    <p class="hint">${p.ok ? 'Semua selisih berada dalam batas wajar.' : p.neg ? 'Ada produk dengan stok lebih banyak dari yang tersedia. Periksa belanja dan jumlah opname.' : 'Selisih di atas batas wajar. Periksa laporan harian pada periode ini.'}</p>`
     : `<p class="hint">Opname awal. Perhitungan periode dimulai pada opname berikutnya.</p>`;
 
   openSheet(`
     <h3 class="sheet-title">Opname ${fmtDate(o.date)}</h3>
-    <p class="hint">Dicatat oleh ${esc(o.by || '-')}${o.note ? ` · ${esc(o.note)}` : ''}</p>
-    <div class="sum-block">
-      <div class="line"><span>Nilai stok dengan HPP</span><b>${rp(o.hppValue)}</b></div>
-      <div class="line"><span>Nilai stok dengan harga jual</span><b>${rp(o.jualValue)}</b></div>
-      <div class="line"><span>Saldo bank / tabungan</span><b>${rp(o.bank)}</b></div>
+    <p class="hint">Dicatat oleh ${esc(o.by || '-')}${o.note ? ` · ${esc(o.note)}` : ''}. Opname tidak dapat diubah atau dihapus.</p>
+    <div class="table-wrap sheet-tbl"><table class="tbl">
+      <thead><tr><th>Produk</th><th class="c">Qty</th><th class="r">Nilai HPP</th><th class="r">Nilai jual</th></tr></thead>
+      <tbody>${lines}</tbody>
+    </table></div>
+    <div class="sum-block" style="margin-top:12px">
+      <div class="line"><span>Total stok HPP</span><b>${rp(o.hppValue)}</b></div>
+      <div class="line"><span>Total stok harga jual</span><b>${rp(o.jualValue)}</b></div>
+      <div class="line"><span>Uang di laci</span><b>${rp(o.cashLaci)}</b></div>
+      <div class="line"><span>Uang di kasir</span><b>${rp(o.cashKasir)}</b></div>
+      <div class="line"><span>Saldo bank</span><b>${rp(o.bank)}</b></div>
     </div>
     ${body}
-    <button class="btn-danger" data-del-op="${o.id}">${ic('trash')}Hapus opname</button>
     <button class="btn-ghost" data-close>Tutup</button>
   `);
-}
-
-async function deleteOpname(id) {
-  if (!(await ask('Hapus opname ini? Rekonsiliasi periode terkait akan berubah.', 'Hapus opname', 'danger', 'Hapus'))) return;
-  try { await db.collection(C.opname).doc(id).delete(); closeSheet(); toast('Opname dihapus'); }
-  catch (err) { fail(err.message); }
 }
 
 // ============================================================
@@ -1131,6 +1374,7 @@ function renderSettings() {
     ['editProfile', 'user', 'Edit profil', 'Nama dan foto akun', false],
     ['password', 'key', 'Ganti password', 'Ubah kata sandi akun', false],
     ['users', 'users', 'Kelola pengguna', 'Tambah akun & atur role', true],
+    ['log', 'log', 'Log aktivitas', 'Riwayat perubahan (hanya dibaca)', true],
     ['exportXlsx', 'chart', 'Export laporan (Excel)', 'Sesuai periode di Beranda', true],
     ['backup', 'download', 'Backup data (JSON)', 'Salin semua data ke file', true],
     ['about', 'info', 'Tentang aplikasi', 'Versi dan cara kerja', false],
@@ -1151,6 +1395,7 @@ $('settingsMenu').addEventListener('click', async (e) => {
     editProfile: openEditProfile,
     password: openPasswordSheet,
     users: openUsersSheet,
+    log: openAuditSheet,
     exportXlsx: exportWorkbook,
     backup: backupAll,
     about: openAbout,
@@ -1159,6 +1404,20 @@ $('settingsMenu').addEventListener('click', async (e) => {
   try { await actions[b.dataset.act](); }
   catch (err) { fail(err.message); }
 });
+
+function openAuditSheet() {
+  const rows = auditLogs.map((a) => {
+    const t = a.at?.toDate ? a.at.toDate() : null;
+    const when = t ? t.toLocaleString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    return `<div class="line"><span>${esc(a.action.replace(/_/g, ' '))} · ${esc(a.target || '')}<small>${esc(a.by || '')} · ${when}${a.summary ? ' · ' + esc(a.summary) : ''}</small></span></div>`;
+  }).join('');
+  openSheet(`
+    <h3 class="sheet-title">Log aktivitas</h3>
+    <p class="hint">Setiap perubahan produk, harga, opname, pengambilan, dan edit laporan tercatat di sini. Log tidak bisa diubah atau dihapus.</p>
+    <div class="sum-block">${rows || '<p class="muted">Belum ada aktivitas.</p>'}</div>
+    <button class="btn-ghost" data-close>Tutup</button>
+  `);
+}
 
 let pendingAvatar = null;
 function openEditProfile() {
@@ -1200,11 +1459,8 @@ async function saveProfile() {
     renderSettings();
     closeSheet();
     toast('Profil diperbarui');
-  } catch (err) {
-    fail(err.message);
-  } finally {
-    btn.disabled = false; btn.innerHTML = `${ic('check')}Simpan perubahan`;
-  }
+  } catch (err) { fail(err.message); }
+  finally { btn.disabled = false; btn.innerHTML = `${ic('check')}Simpan perubahan`; }
 }
 
 function openPasswordSheet() {
@@ -1262,8 +1518,12 @@ function renderUsersList() {
 }
 document.addEventListener('change', async (e) => {
   if (!e.target.classList.contains('role-sel')) return;
-  try { await db.collection(C.users).doc(e.target.dataset.uid).update({ role: e.target.value }); toast('Role diperbarui'); }
-  catch (err) { fail(err.message); }
+  const u = allUsers.find((x) => x.id === e.target.dataset.uid);
+  try {
+    await db.collection(C.users).doc(e.target.dataset.uid).update({ role: e.target.value });
+    await logAudit('role_diubah', u?.username || '', `${u?.role} → ${e.target.value}`);
+    toast('Role diperbarui');
+  } catch (err) { fail(err.message); }
 });
 
 let secondaryAuth = null;
@@ -1300,18 +1560,17 @@ function openAddUserSheet() {
         const cred = await sAuth.createUserWithEmailAndPassword(usernameToEmail(username), password);
         await db.collection(C.users).doc(cred.user.uid).set({ username, name, role, photoData: '', createdAt: TS() });
         await sAuth.signOut();
+        await logAudit('akun_dibuat', username, `role ${role}`);
         success(`Akun @${username} sudah dibuat.`, 'Berhasil');
         openUsersSheet();
       } catch (err) {
         fail(err.code === 'auth/email-already-in-use' ? 'Username sudah dipakai.' : err.message, 'Gagal membuat akun');
-      } finally {
-        btn.disabled = false;
-      }
+      } finally { btn.disabled = false; }
     };
   });
 }
 
-// ---- Simpan file (browser: unduh, Android: bagikan) ----
+// ---- Simpan file: browser unduh, Android bagikan ----
 function saveFile(filename, base64, mime) {
   if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
     const P = Capacitor.Plugins;
@@ -1337,31 +1596,48 @@ async function exportWorkbook() {
 
   const laporan = dayR.map((d) => ({
     'Tanggal': d.c.date, 'Kasir': d.c.kasirName,
-    'Saldo Awal Laci': d.startLaci, 'Tunai': d.cash, 'QRIS': d.qris, 'Omset': d.gross,
-    'Belanja Stok': d.opexStok, 'Biaya Operasional': d.opexBiaya, 'Ambil Owner dari Laci': d.ambilLaci,
-    'Seharusnya di Laci': d.expected, 'Uang Fisik': d.actual, 'Selisih Kas': d.diff,
+    'Tunai': d.cash, 'QRIS': d.qris, 'Omset': d.gross,
+    'Belanja Barang': d.opexStok, 'Biaya Operasional': d.opexBiaya,
+    'Laci: Seharusnya': d.laciExp, 'Laci: Fisik': d.physLaci, 'Selisih Laci': d.diffLaci,
+    'Kasir: Seharusnya': d.kasirExp ?? '', 'Kasir: Fisik': d.physKasir ?? '', 'Selisih Kasir': d.diffKasir,
     'Catatan': d.c.notes || ''
   }));
   const rekon = perR.map((p) => ({
-    'Periode': `${p.A.date} s/d ${p.B.date}`, 'Omset Tercatat': p.gross, 'HPP Terjual': p.hppSold,
-    'Rasio Jual/HPP': Number(p.ratio.toFixed(2)), 'Omset Seharusnya': Math.round(p.omsetSeh),
-    'Selisih Omset': Math.round(p.selOmset), 'Biaya Operasional': p.biaya, 'Laba Periode': Math.round(p.laba),
-    'Ambil Owner': p.ambil, 'Selisih Kekayaan': Math.round(p.selKek), 'Status': p.ok ? 'Sesuai' : 'Cek'
+    'Periode': `${p.A.date} s/d ${p.B.date}`, 'Omset Tercatat': p.gross,
+    'Omset Seharusnya': Math.round(p.omsetSeh), 'Selisih Omset': Math.round(p.selOmset),
+    'HPP Terjual': Math.round(p.hppSold), 'Biaya': p.biaya, 'Selisih Harga Beli': Math.round(p.premium),
+    'Laba': Math.round(p.laba), 'Ambil Owner': p.ambil, 'Selisih Kekayaan': Math.round(p.selKek),
+    'Status': p.ok ? 'Sesuai' : 'Cek'
   }));
-  const ops = opnames.filter((o) => o.date >= from && o.date <= to).map((o) => ({
-    'Tanggal': o.date, 'Nilai Stok HPP': o.hppValue, 'Nilai Stok Jual': o.jualValue,
-    'Saldo Bank': o.bank, 'Catatan': o.note || '', 'Dicatat oleh': o.by || ''
+  const perProd = perR.flatMap((p) => p.perProduct.map((d) => ({
+    'Periode': `${p.A.date} s/d ${p.B.date}`, 'Produk': d.name, 'Awal': d.awal, 'Masuk': d.masuk,
+    'Akhir': d.akhir, 'Terjual': d.terjual, 'Harga Jual': d.price, 'HPP': d.hpp, 'Omset': Math.round(d.rev)
+  })));
+  const prodRows = products.map((p) => ({
+    'Produk': p.name, 'Kategori': p.category, 'Harga Jual': num(p.price), 'HPP': num(p.hpp),
+    'Status': p.active === false ? 'Nonaktif' : 'Aktif', 'Catatan': p.needsPrice ? 'Belum ada harga' : ''
+  }));
+  const opRows = opnames.filter((o) => o.date >= from && o.date <= to).map((o) => ({
+    'Tanggal': o.date, 'Stok HPP': o.hppValue, 'Stok Jual': o.jualValue,
+    'Laci': o.cashLaci, 'Kasir': o.cashKasir, 'Bank': o.bank, 'Dicatat oleh': o.by || ''
   }));
   const wd = inRange(withdrawals, from, to).map((w) => ({
-    'Tanggal': w.date, 'Jenis': w.type === 'setor' ? 'Setor' : 'Ambil', 'Jumlah': num(w.amount),
-    'Dari Laci': w.fromDrawer === false ? 'Tidak' : 'Ya', 'Catatan': w.note || '', 'Dicatat oleh': w.by || ''
+    'Tanggal': w.date, 'Jenis': w.type === 'setor' ? 'Setor' : 'Ambil', 'Dari': w.pocket === 'kasir' ? 'Kasir' : 'Laci',
+    'Jumlah': num(w.amount), 'Catatan': w.note || '', 'Dicatat oleh': w.by || ''
+  }));
+  const audit = auditLogs.map((a) => ({
+    'Waktu': a.at?.toDate ? a.at.toDate().toLocaleString('id-ID') : '', 'Oleh': a.by, 'Aksi': a.action,
+    'Target': a.target, 'Keterangan': a.summary || ''
   }));
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, sheet(laporan), 'Laporan Harian');
   XLSX.utils.book_append_sheet(wb, sheet(rekon), 'Rekonsiliasi');
-  XLSX.utils.book_append_sheet(wb, sheet(ops), 'Opname');
-  XLSX.utils.book_append_sheet(wb, sheet(wd), 'Pengambilan Owner');
+  XLSX.utils.book_append_sheet(wb, sheet(perProd), 'Detail Produk');
+  XLSX.utils.book_append_sheet(wb, sheet(prodRows), 'Produk');
+  XLSX.utils.book_append_sheet(wb, sheet(opRows), 'Opname');
+  XLSX.utils.book_append_sheet(wb, sheet(wd), 'Ambil Setor');
+  XLSX.utils.book_append_sheet(wb, sheet(audit), 'Log Aktivitas');
   const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
   await saveFile(`KantinBarokah_${from}_sd_${to}.xlsx`, b64,
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1374,10 +1650,9 @@ async function backupAll() {
       ? new Date(v.seconds * 1000).toISOString() : v));
   const payload = clean({
     app: 'Kantin Barokah', version: APP_VERSION, exportedAt: new Date().toISOString(),
-    closings: allClosings, withdrawals, opname: opnames, users: allUsers
+    closings: allClosings, withdrawals, opname: opnames, products, users: allUsers, audit: auditLogs
   });
-  const json = JSON.stringify(payload, null, 2);
-  const b64 = btoa(unescape(encodeURIComponent(json)));
+  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
   await saveFile(`kantin_backup_${todayStr()}.json`, b64, 'application/json');
   toast('Backup dibuat');
 }
@@ -1389,12 +1664,8 @@ function openAbout() {
       <h3 class="sheet-title" style="margin-top:12px">Kantin Barokah</h3>
       <p class="hint">Tutup Kasir Harian · Versi ${APP_VERSION}</p>
     </div>
-    <div class="sum-block">
-      <div class="line"><span>Database</span><b>Firestore</b></div>
-      <div class="line"><span>Foto nota</span><b>Firestore (terkompres)</b></div>
-    </div>
     <h4 class="sub-hd">Cara kerja</h4>
-    <p class="hint">Kasir mengisi tunai, QRIS, uang fisik, dan belanja setiap hari. Owner melakukan opname stok sekitar seminggu sekali dengan tiga angka. Aplikasi lalu menghitung apakah omset dan kekayaan toko sesuai.</p>
+    <p class="hint">Kasir mengisi penjualan, pindah uang antara laci dan kasir, belanja, dan uang fisik setiap hari. Owner melakukan opname per produk secara berkala. Aplikasi lalu membandingkan stok, omset, dan kekayaan toko, dan mencatat semua perubahan di log.</p>
     <button class="btn-ghost" data-close>Tutup</button>
   `);
 }
@@ -1410,3 +1681,6 @@ $('dashTo').value = todayStr();
 $('dashFrom').addEventListener('change', renderDashboard);
 $('dashTo').addEventListener('change', renderDashboard);
 renderPhotos();
+
+// Ekspor untuk pengujian (tidak mengubah perilaku aplikasi)
+if (typeof module !== 'undefined') module.exports = { computeDays, computePeriods, pocketOf };

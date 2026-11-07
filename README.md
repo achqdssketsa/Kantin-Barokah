@@ -121,3 +121,37 @@ Hitung total nilai stok dua cara (nilai HPP dan nilai harga jual) dan saldo bank
 
 ## Data lama
 Laporan v1 dan v2 tetap tampil. Untuk laporan lama, saldo awal laci memakai nilai yang tersimpan, dan perhitungan stok tidak tersedia.
+
+---
+
+# Pembaruan v4.0 (dua kantong, produk, opname rinci, log aktivitas)
+
+## Cara mulai
+1. Deploy aturan: `firebase deploy --only firestore:rules`.
+2. Upload `www/` ke GitHub, lalu buat APK ulang (`npm run sync`).
+3. Login owner → menu **Stok → Produk** → tambahkan semua produk dengan harga jual dan HPP.
+4. Menu **Stok → Opname** → **Opname** pertama: hitung jumlah setiap produk, lalu isi uang di laci, di kasir, dan saldo bank.
+5. Mulai hari berikutnya kasir mengisi **Tutup Kasir** seperti biasa.
+
+## Alur harian (kasir)
+- Penjualan tunai dan QRIS.
+- **Pindah uang**: laci → kasir (modal kasir), dan kasir → laci (setoran hasil penjualan).
+- **Belanja**: pilih jenis Belanja barang (pilih produk dan jumlah) atau Biaya (gas, es, dll.). Pilih dari mana uangnya.
+- Hitung uang di laci dan di kasir secara terpisah, checklist, foto, catatan.
+- Kasir boleh menambah produk baru. Produk itu ditandai "belum ada harga" sampai owner mengisi harga dan HPP.
+
+## Opname (owner, disarankan seminggu sekali, tanpa pemberitahuan sebelumnya)
+Hitung jumlah setiap produk, uang di laci, uang di kasir, dan saldo bank. Opname tidak bisa diubah atau dihapus.
+
+Aplikasi menghitung per produk: terjual = awal + masuk − akhir, lalu dibandingkan dengan omset tercatat. Hasilnya:
+- **Selisih omset**: omset tercatat dibanding omset seharusnya dari stok.
+- **Selisih kekayaan**: perubahan kekayaan toko (stok HPP + bank + laci + kasir) dibanding laba periode dikurangi pengambilan owner.
+
+## Audit
+- **Log aktivitas** (Pengaturan → Log aktivitas) mencatat perubahan produk dan harga, opname, pengambilan dan setoran owner, role, dan edit laporan (dengan nilai lama, nilai baru, dan alasan).
+- Laporan tidak bisa dihapus. Hanya bisa diedit oleh owner, dengan alasan wajib.
+- Opname dan log tidak bisa diubah atau dihapus dari aplikasi maupun dari aturan Firestore.
+
+## Catatan
+- Opname dari versi sebelumnya (v3) tidak dipakai untuk perhitungan per produk. Mulailah dengan opname rinci pertama.
+- Daftar produk di database bisa dibaca oleh semua akun yang login, termasuk HPP. Tampilan aplikasi kasir tidak menampilkan HPP, tetapi data tetap bisa dibaca lewat alat pengembang. Jika ingin HPP benar-benar tersembunyi dari kasir, kami bisa memindahkannya ke koleksi khusus owner.
