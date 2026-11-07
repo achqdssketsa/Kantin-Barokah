@@ -1,10 +1,11 @@
 {
-  "name": "kantin-barokah-app",
-  "version": "1.0.0",
+  "name": "barokah-tutup-kasir",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "sync": "cap sync android",
-    "open": "cap open android"
+    "open": "cap open android",
+    "icons": "npx @capacitor/assets generate --android --iconBackgroundColor '#1d4d2c' --iconBackgroundColorDark '#1d4d2c'"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.2",
@@ -13,6 +14,7 @@
     "@capacitor/share": "^6.0.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^6.1.2"
   }
 }

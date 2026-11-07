@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#4a3012">
-  <title>Canteen Daily Closing</title>
+  <meta name="theme-color" content="#1d4d2c">
+  <title>Barokah · Tutup Kasir</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 
-  <!-- Image Compressor (compressorjs) -->
   <script src="https://cdn.jsdelivr.net/npm/compressorjs@1.2.1/dist/compressor.min.js"></script>
-  <!-- Export Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- Grafik -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -23,259 +24,224 @@
   <!-- ================= LOGIN ================= -->
   <section id="viewLogin" class="screen">
     <div class="login-card">
-      <div class="logo">
-        <div class="logo-grid">
-          <span class="g">🍴</span><span class="y">☕</span>
-          <span class="y">%</span><span class="g">💳</span>
-        </div>
-        <div class="logo-text">
-          <b>Canteen</b>
-          <small>Daily Closing App</small>
-        </div>
+      <div class="brand-hero">
+        <img src="logo.svg" class="brand-logo" alt="">
+        <h1 class="brand-name">BAROKAH</h1>
+        <p class="brand-sub">Tutup Kasir Harian</p>
       </div>
 
-      <h1 class="login-title">Login</h1>
-
-      <form id="formLogin" autocomplete="on">
+      <form id="formLogin" class="login-form">
         <label for="loginUsername">Username</label>
-        <div class="input-wrap">
-          <span class="icon">👤</span>
+        <div class="field-wrap">
+          <span class="fi" data-i="user"></span>
           <input type="text" id="loginUsername" autocomplete="username" autocapitalize="none" required>
         </div>
 
         <label for="loginPassword">Password</label>
-        <div class="input-wrap">
-          <span class="icon">🔒</span>
+        <div class="field-wrap">
+          <span class="fi" data-i="lock"></span>
           <input type="password" id="loginPassword" autocomplete="current-password" required>
-          <button type="button" id="togglePw" class="eye" aria-label="Tampilkan password">👁</button>
+          <button type="button" id="togglePw" class="fi-btn" aria-label="Tampilkan password"></button>
         </div>
 
         <p id="loginError" class="error"></p>
-        <button type="submit" id="btnLogin" class="btn-gold">Login</button>
+        <button type="submit" id="btnLogin" class="btn-primary big">Masuk</button>
       </form>
 
-      <button type="button" id="btnForgot" class="link-btn">Forgot Password?</button>
-      <p class="login-footer">© 2024 Canteen Management Systems</p>
+      <button type="button" id="btnForgot" class="link-btn">Lupa password?</button>
+      <p class="login-footer">© 2026 Barokah</p>
     </div>
   </section>
 
   <!-- ================= APLIKASI ================= -->
   <section id="viewApp" class="screen hidden">
 
-    <header class="topbar">
-      <div>
-        <p class="greet">Welcome, <strong id="greetName"></strong>!</p>
-        <h2 id="pageTitle">Dashboard</h2>
-      </div>
-      <button id="btnLogout" class="avatar" title="Keluar" aria-label="Keluar">👤</button>
+    <header class="app-header">
+      <button id="btnProfile" class="hdr-avatar" aria-label="Profil saya"></button>
+      <div class="brand-top">BAROKAH</div>
+      <span id="hdrRole" class="role-pill"></span>
     </header>
 
     <main class="content">
 
-      <!-- ===== DASHBOARD (OWNER) ===== -->
+      <!-- ===== BERANDA (OWNER) ===== -->
       <div id="tab-dashboard" class="tab">
-        <div class="date-row">
-          <label for="dashDate">Tanggal</label>
-          <input type="date" id="dashDate">
-        </div>
 
-        <div class="panel">
-          <div class="panel-head">Daily Summary</div>
-          <div class="panel-body">
-            <p class="muted">Total Revenue</p>
-            <p class="big" id="sumTotal">Rp 0</p>
-            <div class="split">
-              <div><p class="muted">Cash</p><p class="mid" id="sumCash">Rp 0</p></div>
-              <div><p class="muted">QRIS</p><p class="mid" id="sumQris">Rp 0</p></div>
-            </div>
+        <section class="range-card">
+          <div class="range-field">
+            <span class="range-lbl">Dari</span>
+            <input type="date" id="dashFrom">
           </div>
-        </div>
+          <span class="range-arrow" data-i="arrow"></span>
+          <div class="range-field">
+            <span class="range-lbl">Sampai</span>
+            <input type="date" id="dashTo">
+          </div>
+        </section>
+
+        <section class="hero">
+          <p class="hero-lbl">Total Omset</p>
+          <p class="hero-val" id="sumTotal">Rp 0</p>
+          <div class="hero-split">
+            <div><span>Tunai</span><b id="sumCash">Rp 0</b></div>
+            <div><span>QRIS</span><b id="sumQris">Rp 0</b></div>
+          </div>
+        </section>
 
         <div class="stat-grid">
-          <div class="stat dark"><span class="stat-label">Penjualan Hari Ini</span><span class="stat-value" id="cardTodaySales">Rp 0</span></div>
-          <div class="stat gold"><span class="stat-label">Total Transaksi</span><span class="stat-value" id="cardTransactions">0</span></div>
-          <div class="stat gold"><span class="stat-label">Modal Kas Awal</span><span class="stat-value" id="cardOpening">Rp 0</span></div>
-          <div class="stat dark"><span class="stat-label">Uang Fisik di Laci</span><span class="stat-value" id="cardClosingCash">Rp 0</span></div>
-          <div class="stat dark"><span class="stat-label">Selisih Kas</span><span class="stat-value" id="cardDiscrepancy">Rp 0</span></div>
-          <div class="stat gold"><span class="stat-label">Total Pengeluaran</span><span class="stat-value" id="cardExpenditure">Rp 0</span></div>
-          <div class="stat gold"><span class="stat-label">Ambil Uang Owner</span><span class="stat-value" id="cardPrive">Rp 0</span></div>
-          <div class="stat dark"><span class="stat-label">Keuntungan Bersih</span><span class="stat-value" id="cardNet">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Laba Kotor (Omset)</span><span class="stat-val" id="cardGross">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="box"></span><span class="stat-lbl">HPP Produk</span><span class="stat-val" id="cardHpp">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="wallet"></span><span class="stat-lbl">Pengeluaran Toko</span><span class="stat-val" id="cardOpex">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="chart"></span><span class="stat-lbl">Laba Bersih</span><span class="stat-val" id="cardNet">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="check"></span><span class="stat-lbl">Selisih Kas</span><span class="stat-val" id="cardDiff">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="user"></span><span class="stat-lbl">Ambil Owner</span><span class="stat-val" id="cardPrive">Rp 0</span></div>
         </div>
 
-        <h3 class="section-title">Reports</h3>
+        <h3 class="sec-title">Perlu diperiksa</h3>
+        <div id="alertList" class="list"></div>
 
+        <h3 class="sec-title">Reports</h3>
         <div class="panel">
-          <div class="panel-title">Tren Penjualan (7 hari terakhir)</div>
+          <div class="panel-hd">Tren omset &amp; laba</div>
           <div class="chart-box"><canvas id="chartTrend"></canvas></div>
         </div>
-
         <div class="panel">
-          <div class="panel-title">Distribusi Pembayaran (7 hari)</div>
+          <div class="panel-hd">Omset per kategori produk</div>
           <div class="chart-box chart-donut"><canvas id="chartDist"></canvas></div>
         </div>
-
         <div class="panel">
-          <div class="panel-title">Penjualan per Metode Bayar</div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Metode</th><th class="r">Jumlah</th><th class="r">%</th></tr></thead>
-              <tbody id="payTable"></tbody>
-            </table>
-          </div>
+          <div class="panel-hd">Metode pembayaran</div>
+          <table class="tbl"><tbody id="payTable"></tbody></table>
         </div>
-
         <div class="panel">
-          <div class="panel-title">Status Checklist Akhir Hari</div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Kasir</th><th class="c">Hitung Laci</th><th class="c">Foto Nota</th><th class="c">Cek Stok</th></tr></thead>
-              <tbody id="checklistTable"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="list-head">
-          <h3 class="section-title">Riwayat Tutup Kasir</h3>
-          <button class="btn-export" id="btnExport">📥 Excel</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Tanggal</th><th>Kasir</th><th>Tunai</th><th>QRIS</th><th>Total Masuk</th>
-                <th>Pengeluaran</th><th>Keuntungan</th><th>Status Kas</th><th>Bukti Nota</th><th>Catatan</th>
-              </tr>
-            </thead>
-            <tbody id="closingTableBody"></tbody>
+          <div class="panel-hd">Produk terlaris</div>
+          <table class="tbl">
+            <thead><tr><th>Produk</th><th class="c">Qty</th><th class="r">Omset</th><th class="r">Laba</th></tr></thead>
+            <tbody id="topProducts"></tbody>
           </table>
         </div>
+
+        <div class="sec-row">
+          <h3 class="sec-title">Pengambilan owner</h3>
+          <button id="btnAddWithdraw" class="chip-btn"><span data-i="plus"></span>Catat</button>
+        </div>
+        <div id="withdrawList" class="list"></div>
+
+        <h3 class="sec-title">Laporan tutup kasir</h3>
+        <div id="closingList" class="list"></div>
       </div>
 
       <!-- ===== TUTUP KASIR (SEMUA ROLE) ===== -->
       <div id="tab-kasir" class="tab">
-        <form id="formClosing" class="panel form-panel" autocomplete="off">
-          <div class="panel-title-lg">Laporan Tutup Kasir Harian</div>
+        <section class="kasir-head">
+          <p>Hari ini</p>
+          <h2 id="kasirDate"></h2>
+        </section>
 
-          <div class="field">
-            <label for="closingDate">Tanggal Laporan</label>
-            <input type="date" id="closingDate" required>
-          </div>
+        <form id="formClosing" class="form-stack" autocomplete="off">
 
-          <div class="field">
-            <label for="startingCash">Modal Kas Awal di Laci</label>
-            <input type="number" id="startingCash" min="0" inputmode="numeric" placeholder="Rp 0" required>
-          </div>
-
-          <div class="row2">
+          <div class="panel pad">
+            <div class="sec-hd"><span data-i="wallet"></span><h4>Uang awal &amp; penjualan</h4></div>
             <div class="field">
-              <label for="cashRevenue">Uang Tunai (Cash)</label>
-              <input type="number" id="cashRevenue" min="0" inputmode="numeric" placeholder="Rp 0" required>
+              <label for="startingCash">Modal awal di laci</label>
+              <div class="money"><span>Rp</span><input type="number" id="startingCash" inputmode="numeric" min="0" required></div>
             </div>
-            <div class="field">
-              <label for="qrisRevenue">QRIS / Transfer</label>
-              <input type="number" id="qrisRevenue" min="0" inputmode="numeric" placeholder="Rp 0" required>
-            </div>
-          </div>
-
-          <div class="row2">
-            <div class="field">
-              <label for="transactionCount">Jumlah Transaksi</label>
-              <input type="number" id="transactionCount" min="0" inputmode="numeric" value="0">
-            </div>
-            <div class="field">
-              <label for="priveAmount">Ambil Uang Owner</label>
-              <input type="number" id="priveAmount" min="0" inputmode="numeric" value="0">
+            <div class="row2">
+              <div class="field">
+                <label for="cashRevenue">Penjualan tunai</label>
+                <div class="money"><span>Rp</span><input type="number" id="cashRevenue" inputmode="numeric" min="0" required></div>
+              </div>
+              <div class="field">
+                <label for="qrisRevenue">Penjualan QRIS</label>
+                <div class="money"><span>Rp</span><input type="number" id="qrisRevenue" inputmode="numeric" min="0" required></div>
+              </div>
             </div>
           </div>
 
-          <fieldset class="opex-box">
-            <legend>Pengeluaran Toko (Belanja Mendadak)</legend>
+          <div class="panel pad">
+            <div class="sec-hd"><span data-i="box"></span><h4>Produk terjual</h4></div>
+            <div id="productPicker" class="picker"></div>
+          </div>
+
+          <div class="panel pad">
+            <div class="sec-hd"><span data-i="tag"></span><h4>Pengeluaran toko</h4></div>
             <div id="opexList"></div>
-            <button type="button" class="btn-outline" id="btnAddOpex">+ Tambah Item Belanja</button>
-          </fieldset>
-
-          <div class="summary-box">
-            Seharusnya Uang Tunai di Laci: <strong id="txtExpectedCash">Rp 0</strong>
+            <button type="button" class="btn-outline" id="btnAddOpex"><span data-i="plus"></span>Tambah belanja</button>
           </div>
 
-          <div class="field">
-            <label for="actualCash">Hitung Fisik Uang di Laci</label>
-            <input type="number" id="actualCash" min="0" inputmode="numeric" placeholder="Jumlah uang fisik" required>
+          <div class="panel pad">
+            <div class="sec-hd"><span data-i="cash"></span><h4>Hitung uang fisik di laci</h4></div>
+            <div class="money big-money"><span>Rp</span><input type="number" id="actualCash" inputmode="numeric" min="0" placeholder="0" required></div>
           </div>
 
-          <div id="statusKasBox" class="status-box">Status Kas: <span id="txtStatusKas">-</span></div>
-
-          <div class="checklist">
-            <p class="label-block">Checklist Akhir Hari</p>
-            <label><input type="checkbox" id="chkCounted"> Uang di laci sudah dihitung</label>
-            <label><input type="checkbox" id="chkPhotos"> Nota & bukti belanja sudah difoto</label>
-            <label><input type="checkbox" id="chkStock"> Stok dapur/kantin sudah dicek</label>
+          <div class="panel pad">
+            <div class="sec-hd"><span data-i="check"></span><h4>Checklist akhir hari</h4></div>
+            <label class="check-row"><input type="checkbox" id="chkCounted"><span class="box"></span>Uang di laci sudah dihitung</label>
+            <label class="check-row"><input type="checkbox" id="chkPhotos"><span class="box"></span>Nota &amp; bukti belanja sudah difoto</label>
+            <label class="check-row"><input type="checkbox" id="chkStock"><span class="box"></span>Stok dapur/kantin sudah dicek</label>
           </div>
 
-          <div class="field">
-            <label for="proofImages">Foto Nota & Bukti Belanja</label>
-            <input type="file" id="proofImages" accept="image/*" multiple>
-            <small id="imageInfo" class="muted"></small>
-            <div id="imagePreviewContainer" class="preview-grid"></div>
+          <div class="panel pad">
+            <div class="sec-hd"><span data-i="camera"></span><h4>Foto nota &amp; bukti belanja</h4></div>
+            <label class="dropzone" for="proofInput">
+              <span class="dz-ic" data-i="camera"></span>
+              <strong>Ambil atau pilih foto</strong>
+              <small id="photoHint">Ketuk untuk mengambil atau memilih foto nota</small>
+            </label>
+            <input type="file" id="proofInput" accept="image/*" multiple class="hidden">
+            <div id="photoGrid" class="thumbs"></div>
           </div>
 
-          <div class="field">
-            <label for="notes">Catatan / Alasan Jika Ada Selisih</label>
-            <textarea id="notes" rows="3" placeholder="Contoh: beli es batu 2x karena cuaca panas"></textarea>
+          <div class="panel pad">
+            <div class="field" style="margin:0">
+              <label for="notes">Catatan</label>
+              <textarea id="notes" rows="2" placeholder="mis. beli es batu 2x karena cuaca panas"></textarea>
+            </div>
           </div>
 
-          <button type="submit" id="btnSubmit" class="btn-primary">Simpan & Kirim Laporan</button>
+          <button type="submit" id="btnSubmit" class="btn-primary big">Kirim tutup kasir</button>
         </form>
       </div>
 
-      <!-- ===== PENGGUNA (OWNER) ===== -->
-      <div id="tab-users" class="tab">
-        <form id="formAddUser" class="panel form-panel" autocomplete="off">
-          <div class="panel-title-lg">Tambah Akun Baru</div>
-          <div class="row2">
-            <div class="field">
-              <label for="newUsername">Username</label>
-              <input type="text" id="newUsername" placeholder="contoh: budi" autocapitalize="none" required>
-            </div>
-            <div class="field">
-              <label for="newName">Nama Lengkap</label>
-              <input type="text" id="newName" required>
-            </div>
-          </div>
-          <div class="row2">
-            <div class="field">
-              <label for="newPassword">Password (min. 6)</label>
-              <input type="password" id="newPassword" minlength="6" autocomplete="new-password" required>
-            </div>
-            <div class="field">
-              <label for="newRole">Role</label>
-              <select id="newRole">
-                <option value="kasir">Kasir / Anggota</option>
-                <option value="owner">Owner</option>
-              </select>
-            </div>
-          </div>
-          <button type="submit" id="btnAddUser" class="btn-primary">Buat Akun</button>
-        </form>
+      <!-- ===== PRODUK (OWNER) ===== -->
+      <div id="tab-products" class="tab">
+        <div class="sec-row">
+          <h3 class="sec-title">Daftar produk</h3>
+          <button id="btnAddProduct" class="chip-btn"><span data-i="plus"></span>Produk</button>
+        </div>
+        <p class="hint">Harga jual dan HPP untuk menghitung laba. HPP hanya terlihat oleh Owner.</p>
+        <div id="productList" class="list"></div>
+      </div>
 
-        <h3 class="section-title">Daftar Pengguna</h3>
-        <div id="userList"></div>
+      <!-- ===== PENGATURAN ===== -->
+      <div id="tab-settings" class="tab">
+        <div id="settingsProfile" class="profile-card"></div>
+        <div id="settingsMenu" class="menu"></div>
+        <p class="version">Barokah · v2.0.0</p>
       </div>
 
     </main>
 
     <nav class="bottom-nav">
-      <button class="nav-btn owner-only" data-tab="dashboard"><span>🏠</span><small>Dashboard</small></button>
-      <button class="nav-btn" data-tab="kasir"><span>🧾</span><small>Tutup Kasir</small></button>
-      <button class="nav-btn owner-only" data-tab="users"><span>👥</span><small>Pengguna</small></button>
+      <button class="nav-btn owner-only" data-tab="dashboard"><span data-i="home"></span><small>Beranda</small></button>
+      <button class="nav-btn" data-tab="kasir"><span data-i="receipt"></span><small>Tutup Kasir</small></button>
+      <button class="nav-btn owner-only" data-tab="products"><span data-i="box"></span><small>Produk</small></button>
+      <button class="nav-btn" data-tab="settings"><span data-i="settings"></span><small>Pengaturan</small></button>
     </nav>
   </section>
 
-  <!-- Modal zoom foto nota -->
-  <div id="imageModal" class="modal">
-    <span class="close-modal" id="closeModal">&times;</span>
-    <img id="imgFull" alt="Foto nota">
+  <!-- Bottom sheet -->
+  <div id="sheet" class="sheet-wrap">
+    <div class="sheet">
+      <div class="grip"></div>
+      <div id="sheetBody"></div>
+    </div>
   </div>
+
+  <!-- Penampil foto -->
+  <div id="viewer" class="viewer"><img id="viewerImg" alt=""></div>
+
+  <div id="toast" class="toast"></div>
 
   <script src="app.js"></script>
 </body>

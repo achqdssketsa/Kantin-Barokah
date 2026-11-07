@@ -5,23 +5,48 @@ service cloud.firestore {
     function signedIn() {
       return request.auth != null;
     }
-    function myRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function roleOf(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
     }
     function isOwner() {
-      return signedIn() && myRole() == 'owner';
+      return signedIn() && roleOf(request.auth.uid) == 'owner';
     }
 
-    // Profil pengguna: user boleh baca profilnya sendiri, owner boleh kelola semua
+    // Profil pengguna
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isOwner());
-      allow create, update, delete: if isOwner();
+      allow create, delete: if isOwner();
+      // Owner bebas mengubah; user biasa hanya boleh ubah nama & foto sendiri
+      allow update: if isOwner() || (
+        request.auth.uid == uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.username == resource.data.username
+      );
     }
 
-    // Laporan tutup kasir: kasir boleh kirim, hanya owner yang boleh membaca/ubah
-    match /daily_closings/{id} {
-      allow create: if signedIn() && request.resource.data.submittedBy == request.auth.uid;
+    // Daftar produk: semua pengguna bisa baca (untuk input kasir), hanya owner ubah
+    match /products/{id} {
+      allow read: if signedIn();
+      allow write: if isOwner();
+    }
+
+    // HPP produk: rahasia, hanya owner
+    match /product_costs/{id} {
+      allow read, write: if isOwner();
+    }
+
+    // Laporan tutup kasir: ID dokumen = tanggal → satu laporan per hari.
+    // Kasir hanya bisa CREATE (tidak bisa edit/baca), owner yang mengelola.
+    match /daily_closings/{date} {
+      allow create: if signedIn()
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.date == date;
       allow read, update, delete: if isOwner();
+    }
+
+    // Pengambilan owner: hanya owner
+    match /owner_withdrawals/{id} {
+      allow read, write: if isOwner();
     }
   }
 }

@@ -1,5 +1,9 @@
 {
-  "appId": "com.kantinbarokah.app",
-  "appName": "Kantin Barokah",
-  "webDir": "www"
+  "appId": "com.barokah.tutupkasir",
+  "appName": "Barokah",
+  "webDir": "www",
+  "backgroundColor": "#fbf5e4",
+  "android": {
+    "backgroundColor": "#fbf5e4"
+  }
 }

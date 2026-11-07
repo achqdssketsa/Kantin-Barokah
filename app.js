@@ -1,5 +1,5 @@
 // ============================================================
-// KONFIGURASI FIREBASE
+// BAROKAH · Tutup Kasir · app.js (v2.0.0)
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyBn7vcKmacOkQGAO8W2WzIyJ331XqJccAg",
@@ -10,16 +10,52 @@ const firebaseConfig = {
   appId: "1:726876414448:web:2e889fb5db4dda03f5bd35",
   measurementId: "G-T0PVFR937M"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-const COL_CLOSINGS = 'daily_closings';
-const COL_USERS = 'users';
-const IMAGE_MAX_SIDE = 1024;   // px
-const IMAGE_QUALITY = 0.7;     // 0..1
+const APP_VERSION = '2.0.0';
 const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbyunLWcCJpVO1sgJmWoY3tiHvkIEf8SbUUN1Uby3PGmtN4R0MGmjHlOaQ-1bLjRD4Y/exec';
+const PHOTO_SIDE = 1024, AVATAR_SIDE = 512, PHOTO_QUALITY = 0.7;
+const C = { closings: 'daily_closings', users: 'users', products: 'products', costs: 'product_costs', withdrawals: 'owner_withdrawals' };
+const PALETTE = ['#1d4d2c', '#c9963e', '#4f8a63', '#e3c57a', '#8c5a2b', '#2f6b4f', '#b9a27a'];
+const GREEN = '#1d4d2c', GOLD = '#c9963e';
+
+// ============================================================
+// IKON (outline, gaya elegan)
+// ============================================================
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  box: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20c0-3-1.8-5.4-4.5-6.2"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  tag: '<path d="M3 12V3h9l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>',
+  wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>'
+};
+const ic = (name) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+function hydrate(root = document) {
+  root.querySelectorAll('[data-i]').forEach((el) => { if (!el.innerHTML.trim()) el.innerHTML = ic(el.dataset.i); });
+}
 
 // ============================================================
 // HELPER
@@ -27,38 +63,123 @@ const DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbyunLWcCJpVO1s
 const $ = (id) => document.getElementById(id);
 const num = (v) => Number(v) || 0;
 const rp = (n) => 'Rp ' + Math.round(num(n)).toLocaleString('id-ID');
-const toISODate = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const signedRp = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + rp(Math.abs(n));
+const toISODate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const todayStr = () => toISODate(new Date());
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtSize = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
-// Terima username (akan ditambah @kantin.app) atau email lengkap (dipakai apa adanya)
-const usernameToEmail = (u) => {
-  const v = u.trim().toLowerCase();
-  return v.includes('@') ? v : `${v}@kantin.app`;
-};
-const lastDates = (end, n) => {
-  const base = new Date(end + 'T00:00:00');
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(base);
-    d.setDate(base.getDate() - (n - 1 - i));
-    return toISODate(d);
-  });
-};
+const fmtDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const usernameToEmail = (u) => { const v = u.trim().toLowerCase(); return v.includes('@') ? v : `${v}@kantin.app`; };
 const isNative = () => !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const avatarHtml = (u) => u.photoUrl
+  ? `<img src="${esc(u.photoUrl)}" alt="">`
+  : `<span>${esc((u.name || u.username || '?').charAt(0).toUpperCase())}</span>`;
 
 // ============================================================
 // STATE
 // ============================================================
-let profile = null;          // { uid, username, name, role }
-let allClosings = [];
+let profile = null;
+let products = [];          // { id, name, category, price, active }
+let costs = {};             // productId -> hpp (hanya owner)
+let allClosings = [];       // laporan tutup kasir
+let withdrawals = [];       // pengambilan owner
 let allUsers = [];
-let pendingImages = [];      // Blob hasil kompresi
-let unsubClosings = null;
-let unsubUsers = null;
-let secondaryAuth = null;
+let pendingPhotos = [];     // { blob, url }
+let pendingAvatar = null;   // blob
+let qtyState = {};          // productId -> qty
+let unsubs = [];
 const charts = {};
+
+// ============================================================
+// EFEK GESTUR: riak saat disentuh + getaran ringan
+// ============================================================
+document.addEventListener('pointerdown', (e) => {
+  const t = e.target.closest('button, .tap, .dropzone');
+  if (!t || t.disabled) return;
+  const r = t.getBoundingClientRect();
+  const size = Math.max(r.width, r.height);
+  const span = document.createElement('span');
+  span.className = 'ripple';
+  span.style.width = span.style.height = size + 'px';
+  span.style.left = (e.clientX - r.left - size / 2) + 'px';
+  span.style.top = (e.clientY - r.top - size / 2) + 'px';
+  t.appendChild(span);
+  setTimeout(() => span.remove(), 650);
+  if (navigator.vibrate) navigator.vibrate(8);
+}, { passive: true });
+
+// ============================================================
+// TOAST, SHEET, VIEWER
+// ============================================================
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function openSheet(html, mount) {
+  $('sheetBody').innerHTML = html;
+  hydrate($('sheetBody'));
+  $('sheet').classList.add('open');
+  if (mount) mount();
+}
+function closeSheet() { $('sheet').classList.remove('open'); }
+$('sheet').addEventListener('click', (e) => {
+  if (e.target.id === 'sheet' || e.target.closest('[data-close]')) closeSheet();
+});
+$('sheetBody').addEventListener('click', (e) => {
+  const im = e.target.closest('.photo-mini');
+  if (im) return openViewer(im.dataset.url);
+  const ed = e.target.closest('[data-edit]');
+  if (ed) return openEditClosing(ed.dataset.edit);
+  const del = e.target.closest('[data-del]');
+  if (del) deleteClosing(del.dataset.del);
+});
+function openViewer(url) { $('viewerImg').src = url; $('viewer').classList.add('show'); }
+$('viewer').addEventListener('click', () => $('viewer').classList.remove('show'));
+
+// ============================================================
+// KOMPRESI & UPLOAD (Google Drive via Apps Script)
+// ============================================================
+function compressImage(file, side) {
+  return new Promise((resolve, reject) => {
+    new Compressor(file, {
+      quality: PHOTO_QUALITY, maxWidth: side, maxHeight: side, mimeType: 'image/jpeg',
+      success: resolve, error: reject
+    });
+  });
+}
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('Gagal membaca foto'));
+    reader.readAsDataURL(blob);
+  });
+}
+async function uploadToDrive(blob, fileName) {
+  const idToken = await auth.currentUser.getIdToken();
+  const data = await blobToBase64(blob);
+  let res;
+  try {
+    res = await fetch(DRIVE_UPLOAD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // hindari preflight CORS
+      body: JSON.stringify({ idToken, fileName, mimeType: 'image/jpeg', data })
+    });
+  } catch (err) {
+    throw new Error('Tidak bisa terhubung ke server Drive. Periksa koneksi internet.');
+  }
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); }
+  catch (err) {
+    throw new Error(`Server Drive membalas halaman, bukan data (HTTP ${res.status}). Pastikan deployment "Anyone" dan kode Apps Script terbaru.`);
+  }
+  if (!json.ok) throw new Error(json.error || `Upload ditolak server (HTTP ${res.status}).`);
+  return json; // { fileId, url }
+}
 
 // ============================================================
 // LOGIN & SESI
@@ -76,44 +197,35 @@ $('formLogin').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('loginError').textContent = '';
   const btn = $('btnLogin');
-  btn.disabled = true;
-  btn.textContent = 'Memproses...';
+  btn.disabled = true; btn.textContent = 'Memproses...';
   try {
-    await auth.signInWithEmailAndPassword(
-      usernameToEmail($('loginUsername').value),
-      $('loginPassword').value
-    );
+    await auth.signInWithEmailAndPassword(usernameToEmail($('loginUsername').value), $('loginPassword').value);
   } catch (err) {
     $('loginError').textContent = AUTH_ERRORS[err.code] || 'Gagal login: ' + err.message;
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Login';
+    btn.disabled = false; btn.textContent = 'Masuk';
   }
 });
-
 $('togglePw').addEventListener('click', () => {
   const pw = $('loginPassword');
   pw.type = pw.type === 'password' ? 'text' : 'password';
 });
-
-$('btnForgot').addEventListener('click', () => {
-  alert('Lupa password? Silakan hubungi Owner untuk mereset password akun Anda.');
-});
-
-$('btnLogout').addEventListener('click', () => {
-  if (confirm('Keluar dari aplikasi?')) auth.signOut();
-});
+$('btnForgot').addEventListener('click', () => toast('Silakan hubungi Owner untuk reset password.'));
 
 auth.onAuthStateChanged(async (user) => {
   if (!user) return showLogin();
   try {
-    const snap = await db.collection(COL_USERS).doc(user.uid).get();
+    const snap = await db.collection(C.users).doc(user.uid).get();
     if (!snap.exists) {
       alert('Akun ini belum terdaftar di sistem. Hubungi Owner.');
       return auth.signOut();
     }
     const d = snap.data();
-    profile = { uid: user.uid, username: d.username, name: d.name || d.username, role: d.role };
+    if (d.role === 'nonaktif') {
+      alert('Akun Anda sudah dinonaktifkan. Hubungi Owner.');
+      return auth.signOut();
+    }
+    profile = { uid: user.uid, username: d.username, name: d.name || d.username, role: d.role, photoUrl: d.photoUrl || '' };
     showApp();
   } catch (err) {
     alert('Gagal memuat profil: ' + err.message);
@@ -123,7 +235,7 @@ auth.onAuthStateChanged(async (user) => {
 
 function showLogin() {
   profile = null;
-  stopOwnerListeners();
+  stopListeners();
   $('viewApp').classList.add('hidden');
   $('viewLogin').classList.remove('hidden');
   $('formLogin').reset();
@@ -132,205 +244,238 @@ function showLogin() {
 function showApp() {
   $('viewLogin').classList.add('hidden');
   $('viewApp').classList.remove('hidden');
-  const isOwner = profile.role === 'owner';
-  document.body.classList.toggle('is-owner', isOwner);
-  $('greetName').textContent = profile.name;
-  if (isOwner) startOwnerListeners();
-  showTab(isOwner ? 'dashboard' : 'kasir');
+  const owner = profile.role === 'owner';
+  document.body.classList.toggle('is-owner', owner);
+  paintHeader();
+  renderSettings();
+  $('kasirDate').textContent = fmtDate(todayStr());
+  startListeners();
+  showTab(owner ? 'dashboard' : 'kasir');
+}
+
+function paintHeader() {
+  $('btnProfile').innerHTML = avatarHtml(profile);
+  $('hdrRole').textContent = profile.role === 'owner' ? 'Owner' : 'Kasir';
 }
 
 function showTab(name) {
-  if (name !== 'kasir' && profile?.role !== 'owner') name = 'kasir';
-  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === `tab-${name}`));
+  const owner = profile?.role === 'owner';
+  if (!owner && (name === 'dashboard' || name === 'products')) name = 'kasir';
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + name));
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
-  $('pageTitle').textContent = { dashboard: 'Dashboard', kasir: 'Tutup Kasir', users: 'Pengguna' }[name];
-  window.scrollTo(0, 0);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-document.querySelectorAll('.nav-btn').forEach((b) =>
-  b.addEventListener('click', () => showTab(b.dataset.tab)));
+document.querySelectorAll('.nav-btn').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+$('btnProfile').addEventListener('click', () => showTab('settings'));
 
 // ============================================================
-// LISTENER DATA (KHUSUS OWNER)
+// LISTENER FIRESTORE
 // ============================================================
-function startOwnerListeners() {
-  stopOwnerListeners();
-  unsubClosings = db.collection(COL_CLOSINGS).orderBy('date', 'desc').limit(500)
-    .onSnapshot((snap) => {
-      allClosings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      renderDashboard();
-    }, (err) => alert('Gagal memuat laporan: ' + err.message));
+function startListeners() {
+  stopListeners();
+  unsubs.push(db.collection(C.products).orderBy('name').onSnapshot((s) => {
+    products = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderProductPicker();
+    refreshOwner();
+  }, (err) => console.error('products', err)));
 
-  unsubUsers = db.collection(COL_USERS).orderBy('username')
-    .onSnapshot((snap) => {
-      allUsers = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
-      renderUsers();
-    }, (err) => console.error(err));
+  if (profile.role !== 'owner') return;
+
+  unsubs.push(db.collection(C.costs).onSnapshot((s) => {
+    costs = {};
+    s.forEach((d) => { costs[d.id] = num(d.data().hpp); });
+    refreshOwner();
+  }));
+  unsubs.push(db.collection(C.closings).orderBy('date', 'desc').limit(1000).onSnapshot((s) => {
+    allClosings = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    refreshOwner();
+  }, (err) => alert('Gagal memuat laporan: ' + err.message)));
+  unsubs.push(db.collection(C.withdrawals).orderBy('date', 'desc').onSnapshot((s) => {
+    withdrawals = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    refreshOwner();
+  }));
+  unsubs.push(db.collection(C.users).orderBy('username').onSnapshot((s) => {
+    allUsers = s.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderUsersList();
+  }));
 }
 
-function stopOwnerListeners() {
-  if (unsubClosings) unsubClosings();
-  if (unsubUsers) unsubUsers();
-  unsubClosings = null;
-  unsubUsers = null;
-  allClosings = [];
-  allUsers = [];
+function stopListeners() {
+  unsubs.forEach((u) => u());
+  unsubs = [];
+  allClosings = []; withdrawals = []; allUsers = []; costs = {}; products = [];
+}
+
+function refreshOwner() {
+  if (profile?.role === 'owner') { renderDashboard(); renderProductsTab(); }
 }
 
 // ============================================================
-// FORM TUTUP KASIR
+// PERHITUNGAN (kas, HPP, laba)
 // ============================================================
-const CHECKLIST_IDS = { counted: 'chkCounted', photos: 'chkPhotos', stock: 'chkStock' };
+function withdrawalsByDate() {
+  const m = {};
+  withdrawals.forEach((w) => { m[w.date] = (m[w.date] || 0) + num(w.amount); });
+  return m;
+}
 
-function readForm() {
-  const opexItems = [];
-  document.querySelectorAll('.opex-row').forEach((row) => {
-    const desc = row.querySelector('.opex-desc').value.trim();
-    const amount = num(row.querySelector('.opex-amount').value);
-    if (desc || amount) opexItems.push({ desc, amount });
+// Kas seharusnya = modal + tunai − pengeluaran dari laci − pengambilan owner
+// HPP = qty × HPP produk; Laba bersih = omset − HPP − pengeluaran toko
+function calcClosing(c, wdMap) {
+  const opexTotal = num(c.opexTotal ?? c.totalOpex);
+  const opexDrawer = c.opexDrawer != null ? num(c.opexDrawer) : opexTotal; // data lama
+  const gross = num(c.grossRevenue) || num(c.cashRevenue) + num(c.qrisRevenue);
+  const expected = num(c.startingCash) + num(c.cashRevenue) - opexDrawer - (wdMap[c.date] || 0);
+  const diff = num(c.actualCash) - expected;
+  const items = c.items || [];
+  const hpp = items.reduce((s, i) => s + num(i.qty) * num(costs[i.id]), 0);
+  const itemsRevenue = items.reduce((s, i) => s + num(i.qty) * num(i.price), 0);
+  const unrecorded = c.items ? gross - itemsRevenue : 0; // selisih omset vs produk
+  const net = gross - hpp - opexTotal;
+  return { gross, expected, diff, hpp, itemsRevenue, unrecorded, net, opexTotal };
+}
+
+// Bucket grafik: per hari (≤ 31 hari) atau per bulan
+function buildBuckets(from, to) {
+  const s = new Date(from + 'T00:00:00');
+  const e = new Date(to + 'T00:00:00');
+  const days = Math.round((e - s) / 86400000) + 1;
+  const buckets = [];
+  if (days <= 31) {
+    for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+      const key = toISODate(d);
+      buckets.push({ label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), match: (c) => c.date === key });
+    }
+  } else {
+    for (let d = new Date(s.getFullYear(), s.getMonth(), 1); d <= e; d.setMonth(d.getMonth() + 1)) {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      buckets.push({ label: d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' }), match: (c) => c.date.startsWith(key) });
+    }
+  }
+  return buckets;
+}
+
+function getRange() {
+  let from = $('dashFrom').value || todayStr();
+  let to = $('dashTo').value || todayStr();
+  if (from > to) [from, to] = [to, from];
+  return { from, to };
+}
+const inRange = (list, from, to) => list.filter((x) => x.date >= from && x.date <= to);
+
+// ============================================================
+// FORM TUTUP KASIR (kasir)
+// ============================================================
+function renderProductPicker() {
+  const el = $('productPicker');
+  if (!el) return;
+  const active = products.filter((p) => p.active !== false);
+  if (!active.length) {
+    el.innerHTML = `<p class="hint center">Belum ada produk. Owner perlu menambahkannya di menu Produk.</p>`;
+    return;
+  }
+  el.innerHTML = active.map((p) => {
+    const q = qtyState[p.id] || 0;
+    return `<div class="pick ${q ? 'on' : ''}" data-id="${p.id}">
+      <div class="pick-info"><strong>${esc(p.name)}</strong><small>${rp(p.price)}</small></div>
+      <div class="stepper">
+        <button type="button" class="step" data-step="-1" aria-label="Kurangi">${ic('minus')}</button>
+        <span class="qty">${q}</span>
+        <button type="button" class="step" data-step="1" aria-label="Tambah">${ic('plus')}</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+$('productPicker').addEventListener('click', (e) => {
+  const b = e.target.closest('.step');
+  if (!b) return;
+  const id = b.closest('.pick').dataset.id;
+  qtyState[id] = Math.max(0, (qtyState[id] || 0) + Number(b.dataset.step));
+  renderProductPicker();
+});
+
+function addOpexRow(desc = '', amount = '', drawer = true) {
+  const row = document.createElement('div');
+  row.className = 'opex-row';
+  row.innerHTML = `
+    <div class="opex-top">
+      <input type="text" class="opex-desc" placeholder="Nama belanja (mis. Gas 3kg)" value="${esc(desc)}">
+      <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric" value="${amount}">
+      <button type="button" class="icon-btn" aria-label="Hapus">${ic('x')}</button>
+    </div>
+    <label class="switch-row"><input type="checkbox" class="opex-drawer" ${drawer ? 'checked' : ''}><span class="switch"></span>Dibayar dari uang laci</label>`;
+  row.querySelector('.icon-btn').addEventListener('click', () => row.remove());
+  $('opexList').appendChild(row);
+}
+$('btnAddOpex').addEventListener('click', () => addOpexRow());
+
+$('proofInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  for (const f of files) {
+    try {
+      const blob = await compressImage(f, PHOTO_SIDE);
+      pendingPhotos.push({ blob, url: URL.createObjectURL(blob), orig: f.size });
+    } catch (err) {
+      console.error(err);
+      toast('Ada foto yang gagal diproses');
+    }
+  }
+  renderPhotos();
+});
+
+function renderPhotos() {
+  $('photoGrid').innerHTML = pendingPhotos.map((p, i) => `
+    <div class="thumb-card">
+      <img src="${p.url}" alt="Foto ${i + 1}">
+      <span class="size">${fmtSize(p.blob.size)}</span>
+      <button type="button" class="thumb-x" data-i="${i}" aria-label="Hapus foto">${ic('x')}</button>
+    </div>`).join('');
+  if (!pendingPhotos.length) {
+    $('photoHint').textContent = 'Ketuk untuk mengambil atau memilih foto nota';
+  } else {
+    const before = pendingPhotos.reduce((s, p) => s + p.orig, 0);
+    const after = pendingPhotos.reduce((s, p) => s + p.blob.size, 0);
+    $('photoHint').textContent = `${pendingPhotos.length} foto · ${fmtSize(before)} → ${fmtSize(after)} setelah dikompres`;
+  }
+}
+$('photoGrid').addEventListener('click', (e) => {
+  const b = e.target.closest('.thumb-x');
+  if (!b) return;
+  pendingPhotos.splice(Number(b.dataset.i), 1);
+  renderPhotos();
+});
+
+function readClosingForm() {
+  const opex = [];
+  document.querySelectorAll('.opex-row').forEach((r) => {
+    const desc = r.querySelector('.opex-desc').value.trim();
+    const amount = num(r.querySelector('.opex-amount').value);
+    const fromDrawer = r.querySelector('.opex-drawer').checked;
+    if (desc || amount) opex.push({ desc, amount, fromDrawer });
   });
-
-  const startingCash = num($('startingCash').value);
+  const items = products
+    .filter((p) => (qtyState[p.id] || 0) > 0)
+    .map((p) => ({ id: p.id, name: p.name, qty: qtyState[p.id], price: num(p.price) }));
   const cashRevenue = num($('cashRevenue').value);
   const qrisRevenue = num($('qrisRevenue').value);
-  const priveAmount = num($('priveAmount').value);
-  const totalOpex = opexItems.reduce((s, i) => s + i.amount, 0);
-  const expectedCash = startingCash + cashRevenue - totalOpex - priveAmount;
-
-  const checklist = {};
-  for (const [key, id] of Object.entries(CHECKLIST_IDS)) checklist[key] = $(id).checked;
-
   return {
-    date: $('closingDate').value,
-    startingCash,
-    cashRevenue,
-    qrisRevenue,
-    transactionCount: num($('transactionCount').value),
-    priveAmount,
-    totalOpex,
-    opexItems,
-    expectedCash,
-    actualRaw: $('actualCash').value,
+    date: todayStr(),
+    startingCash: num($('startingCash').value),
+    cashRevenue, qrisRevenue,
+    grossRevenue: cashRevenue + qrisRevenue,
+    items,
+    itemsRevenue: items.reduce((s, i) => s + i.qty * i.price, 0),
+    opex,
+    opexTotal: opex.reduce((s, o) => s + o.amount, 0),
+    opexDrawer: opex.filter((o) => o.fromDrawer).reduce((s, o) => s + o.amount, 0),
     actualCash: num($('actualCash').value),
-    checklist,
+    checklist: { counted: $('chkCounted').checked, photos: $('chkPhotos').checked, stock: $('chkStock').checked },
     notes: $('notes').value.trim()
   };
 }
 
-function updateCalc() {
-  const f = readForm();
-  $('txtExpectedCash').textContent = rp(f.expectedCash);
-
-  const box = $('statusKasBox');
-  const txt = $('txtStatusKas');
-  box.className = 'status-box';
-
-  if (!f.actualRaw) {
-    txt.textContent = '-';
-    return;
-  }
-  const diff = f.actualCash - f.expectedCash;
-  if (diff === 0) {
-    txt.textContent = 'PAS (uang di laci sesuai)';
-    box.classList.add('st-ok');
-  } else if (diff < 0) {
-    txt.textContent = `KURANG ${rp(-diff)}`;
-    box.classList.add('st-minus');
-  } else {
-    txt.textContent = `LEBIH ${rp(diff)}`;
-    box.classList.add('st-plus');
-  }
-}
-
-$('formClosing').addEventListener('input', updateCalc);
-$('formClosing').addEventListener('change', updateCalc);
-
-$('btnAddOpex').addEventListener('click', () => {
-  const row = document.createElement('div');
-  row.className = 'opex-row';
-  row.innerHTML = `
-    <input type="text" class="opex-desc" placeholder="Nama barang (mis. Gas 3kg)">
-    <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric">
-    <button type="button" class="btn-remove" aria-label="Hapus">✕</button>`;
-  row.querySelector('.btn-remove').addEventListener('click', () => {
-    row.remove();
-    updateCalc();
-  });
-  $('opexList').appendChild(row);
-});
-
-// ============================================================
-// KOMPRESI FOTO (compressorjs)
-// ============================================================
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    new Compressor(file, {
-      quality: IMAGE_QUALITY,
-      maxWidth: IMAGE_MAX_SIDE,
-      maxHeight: IMAGE_MAX_SIDE,
-      mimeType: 'image/jpeg',
-      success: resolve,
-      error: reject
-    });
-  });
-}
-
-$('proofImages').addEventListener('change', async (e) => {
-  const files = Array.from(e.target.files);
-  const grid = $('imagePreviewContainer');
-  grid.innerHTML = '';
-  pendingImages = [];
-
-  for (let i = 0; i < files.length; i++) {
-    $('imageInfo').textContent = `Mengompres foto ${i + 1}/${files.length}...`;
-    try {
-      const blob = await compressImage(files[i]);
-      pendingImages.push(blob);
-
-      const item = document.createElement('div');
-      item.className = 'preview-item';
-      item.innerHTML = `
-        <img src="${URL.createObjectURL(blob)}" alt="Foto ${i + 1}">
-        <small>${fmtSize(files[i].size)} → ${fmtSize(blob.size)}</small>`;
-      grid.appendChild(item);
-    } catch (err) {
-      console.error('Kompres gagal:', err);
-    }
-  }
-  $('imageInfo').textContent = pendingImages.length
-    ? `${pendingImages.length} foto siap diunggah.` : '';
-});
-
-// ============================================================
-// UPLOAD FOTO KE GOOGLE DRIVE (via Google Apps Script)
-// ============================================================
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',')[1]);
-    reader.onerror = () => reject(new Error('Gagal membaca foto'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function uploadToDrive(blob, fileName) {
-  const idToken = await auth.currentUser.getIdToken();
-  const data = await blobToBase64(blob);
-  const res = await fetch(DRIVE_UPLOAD_URL, {
-    method: 'POST',
-    // text/plain agar tidak memicu preflight CORS (Apps Script tidak mendukungnya)
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ idToken, fileName, mimeType: 'image/jpeg', data })
-  });
-  if (!res.ok) throw new Error(`Server Drive error (${res.status})`);
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error || 'Upload ke Drive gagal');
-  return json; // { fileId, url }
-}
-
-// ============================================================
-// SIMPAN LAPORAN
-// ============================================================
-function setSubmitting(on, text = 'Simpan & Kirim Laporan') {
+function setBusy(on, text = 'Kirim tutup kasir') {
   const b = $('btnSubmit');
   b.disabled = on;
   b.textContent = text;
@@ -338,334 +483,812 @@ function setSubmitting(on, text = 'Simpan & Kirim Laporan') {
 
 function resetClosingForm() {
   $('formClosing').reset();
-  $('closingDate').value = todayStr();
   $('opexList').innerHTML = '';
-  $('imagePreviewContainer').innerHTML = '';
-  $('imageInfo').textContent = '';
-  pendingImages = [];
-  updateCalc();
+  qtyState = {};
+  pendingPhotos.forEach((p) => URL.revokeObjectURL(p.url));
+  pendingPhotos = [];
+  renderPhotos();
+  renderProductPicker();
 }
 
 $('formClosing').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const f = readForm();
+  const raw = readClosingForm();
+  if (!$('startingCash').value) return toast('Isi modal awal di laci');
+  if (!$('cashRevenue').value || !$('qrisRevenue').value) return toast('Isi penjualan tunai dan QRIS (boleh 0)');
+  if (!$('actualCash').value) return toast('Hitung uang fisik di laci');
+  if (!Object.values(raw.checklist).every(Boolean)) return toast('Lengkapi checklist akhir hari');
+  if (!raw.items.length && !confirm('Belum ada produk yang dicatat terjual. Tetap kirim?')) return;
+  if (!pendingPhotos.length && !confirm('Belum ada foto nota. Tetap kirim?')) return;
 
-  if (!f.actualRaw) return alert('Isi hitungan fisik uang di laci.');
-  if (!Object.values(f.checklist).every(Boolean)) return alert('Lengkapi semua checklist akhir hari.');
-  if (!pendingImages.length && !confirm('Belum ada foto nota. Tetap kirim laporan?')) return;
-
-  setSubmitting(true, 'Menyimpan...');
+  setBusy(true, 'Mengunggah...');
   try {
     const proofImages = [];
     const proofFileIds = [];
-    for (let i = 0; i < pendingImages.length; i++) {
-      setSubmitting(true, `Mengunggah foto ${i + 1}/${pendingImages.length}...`);
-      const res = await uploadToDrive(pendingImages[i], `${profile.uid}_${f.date}_${Date.now()}_${i}.jpg`);
-      proofImages.push(res.url);
-      proofFileIds.push(res.fileId);
+    for (let i = 0; i < pendingPhotos.length; i++) {
+      setBusy(true, `Mengunggah foto ${i + 1}/${pendingPhotos.length}...`);
+      const r = await uploadToDrive(pendingPhotos[i].blob, `${profile.uid}_${raw.date}_${Date.now()}_${i}.jpg`);
+      proofImages.push(r.url);
+      proofFileIds.push(r.fileId);
     }
-
-    setSubmitting(true, 'Menyimpan laporan...');
-    const grossRevenue = f.cashRevenue + f.qrisRevenue;
-
-    await db.collection(COL_CLOSINGS).add({
-      date: f.date,
+    setBusy(true, 'Menyimpan laporan...');
+    // ID dokumen = tanggal → hanya satu laporan per hari (diatur di aturan Firestore)
+    await db.collection(C.closings).doc(raw.date).set({
+      ...raw,
       kasirName: profile.name,
       submittedBy: profile.uid,
-      startingCash: f.startingCash,
-      cashRevenue: f.cashRevenue,
-      qrisRevenue: f.qrisRevenue,
-      transactionCount: f.transactionCount,
-      grossRevenue,
-      totalOpex: f.totalOpex,
-      opexDetails: f.opexItems,
-      priveAmount: f.priveAmount,
-      expectedCash: f.expectedCash,
-      actualCash: f.actualCash,
-      discrepancy: f.actualCash - f.expectedCash,
-      netProfit: grossRevenue - f.totalOpex,
-      checklist: f.checklist,
-      notes: f.notes,
       proofImages,
       proofFileIds,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
-
-    alert('Berhasil! Laporan tutup kasir sudah dikirim.');
     resetClosingForm();
+    $('startingCash').value = ''; $('cashRevenue').value = ''; $('qrisRevenue').value = ''; $('actualCash').value = '';
+    openSheet(`
+      <div class="empty" style="padding-top:18px">
+        ${ic('check')}
+        <h3 class="sheet-title">Laporan terkirim</h3>
+        <p class="hint">Terima kasih. Laporan hari ini sudah tersimpan.</p>
+      </div>
+      <button class="btn-primary" data-close>Tutup</button>`);
   } catch (err) {
     console.error(err);
-    alert('Gagal menyimpan: ' + err.message);
+    if (err.code === 'permission-denied') {
+      alert('Laporan untuk hari ini sudah pernah dikirim. Hubungi Owner jika perlu koreksi.');
+    } else {
+      alert('Gagal menyimpan: ' + err.message);
+    }
   } finally {
-    setSubmitting(false);
+    setBusy(false);
   }
 });
 
 // ============================================================
-// DASHBOARD OWNER
+// PRODUK (owner)
+// ============================================================
+function renderProductsTab() {
+  const el = $('productList');
+  if (!el || profile?.role !== 'owner') return;
+  if (!products.length) {
+    el.innerHTML = `<div class="empty">${ic('box')}<p>Belum ada produk. Tambahkan produk pertama Anda.</p></div>`;
+    return;
+  }
+  el.innerHTML = products.map((p) => {
+    const hpp = num(costs[p.id]);
+    const margin = p.price ? Math.round(((num(p.price) - hpp) / num(p.price)) * 100) : 0;
+    return `<div class="prod-card tap ${p.active === false ? 'off' : ''}" data-id="${p.id}">
+      <div class="prod-ic">${ic('tag')}</div>
+      <div class="prod-main"><strong>${esc(p.name)}</strong><small>${esc(p.category || 'Umum')} · HPP ${rp(hpp)}</small></div>
+      <div class="prod-price"><strong>${rp(p.price)}</strong><span class="chip ${margin >= 0 ? 'ok' : 'no'}">Margin ${margin}%</span></div>
+    </div>`;
+  }).join('');
+}
+$('productList').addEventListener('click', (e) => {
+  const card = e.target.closest('.prod-card');
+  if (card) openProductSheet(card.dataset.id);
+});
+$('btnAddProduct').addEventListener('click', () => openProductSheet(null));
+
+function openProductSheet(id) {
+  const p = id ? products.find((x) => x.id === id) : null;
+  openSheet(`
+    <h3 class="sheet-title">${p ? 'Edit produk' : 'Produk baru'}</h3>
+    <div class="field"><label for="pName">Nama produk</label><input type="text" id="pName" value="${esc(p?.name || '')}" placeholder="mis. Nasi Goreng"></div>
+    <div class="field"><label for="pCat">Kategori</label><input type="text" id="pCat" value="${esc(p?.category || '')}" placeholder="mis. Makanan"></div>
+    <div class="row2">
+      <div class="field"><label for="pPrice">Harga jual</label><input type="number" id="pPrice" inputmode="numeric" min="0" value="${p ? num(p.price) : ''}"></div>
+      <div class="field"><label for="pHpp">HPP (modal/porsi)</label><input type="number" id="pHpp" inputmode="numeric" min="0" value="${p ? num(costs[p.id]) : ''}"></div>
+    </div>
+    <p class="hint" id="pMargin"></p>
+    <button class="btn-primary" id="pSave">${ic('check')}Simpan</button>
+    ${p ? `<button class="btn-ghost" id="pToggle">${p.active === false ? 'Aktifkan produk' : 'Nonaktifkan produk'}</button>` : ''}
+  `, () => {
+    const preview = () => {
+      const price = num($('pPrice').value), hpp = num($('pHpp').value);
+      $('pMargin').textContent = price ? `Laba per porsi ${rp(price - hpp)} (margin ${Math.round(((price - hpp) / price) * 100)}%)` : '';
+    };
+    $('pPrice').addEventListener('input', preview);
+    $('pHpp').addEventListener('input', preview);
+    preview();
+
+    $('pSave').onclick = async () => {
+      const name = $('pName').value.trim();
+      if (!name) return toast('Nama produk wajib diisi');
+      try {
+        const ref = p ? db.collection(C.products).doc(p.id) : db.collection(C.products).doc();
+        await ref.set({
+          name,
+          category: $('pCat').value.trim() || 'Umum',
+          price: num($('pPrice').value),
+          active: p ? p.active !== false : true
+        }, { merge: true });
+        await db.collection(C.costs).doc(ref.id).set({ hpp: num($('pHpp').value) });
+        closeSheet();
+        toast('Produk tersimpan');
+      } catch (err) { alert('Gagal menyimpan: ' + err.message); }
+    };
+    if (p) $('pToggle').onclick = async () => {
+      await db.collection(C.products).doc(p.id).update({ active: p.active === false });
+      closeSheet();
+      toast(p.active === false ? 'Produk diaktifkan' : 'Produk dinonaktifkan');
+    };
+  });
+}
+
+// ============================================================
+// BERANDA (owner)
 // ============================================================
 function renderDashboard() {
-  const date = $('dashDate').value || todayStr();
-  const day = allClosings.filter((c) => c.date === date);
-  const sum = (key, list = day) => list.reduce((s, c) => s + num(c[key]), 0);
+  if (profile?.role !== 'owner') return;
+  const { from, to } = getRange();
+  const list = inRange(allClosings, from, to);
+  const wd = inRange(withdrawals, from, to);
+  const wdMap = withdrawalsByDate();
+  const rows = list.map((c) => ({ c, k: calcClosing(c, wdMap) }));
+  const T = (fn) => rows.reduce((s, r) => s + fn(r), 0);
 
-  const gross = sum('grossRevenue');
-  const cash = sum('cashRevenue');
-  const qris = sum('qrisRevenue');
+  const gross = T((r) => r.k.gross);
+  const cash = T((r) => num(r.c.cashRevenue));
+  const qris = T((r) => num(r.c.qrisRevenue));
 
   $('sumTotal').textContent = rp(gross);
   $('sumCash').textContent = rp(cash);
   $('sumQris').textContent = rp(qris);
+  $('cardGross').textContent = rp(gross);
+  $('cardHpp').textContent = rp(T((r) => r.k.hpp));
+  $('cardOpex').textContent = rp(T((r) => r.k.opexTotal));
+  $('cardNet').textContent = rp(T((r) => r.k.net));
+  const diff = T((r) => r.k.diff);
+  $('cardDiff').textContent = signedRp(diff);
+  $('cardDiff').className = 'stat-val ' + (diff < 0 ? 'neg' : diff > 0 ? 'pos' : '');
+  $('cardPrive').textContent = rp(wd.reduce((s, w) => s + num(w.amount), 0));
 
-  $('cardTodaySales').textContent = rp(gross);
-  $('cardTransactions').textContent = sum('transactionCount').toLocaleString('id-ID');
-  $('cardOpening').textContent = rp(sum('startingCash'));
-  $('cardClosingCash').textContent = rp(sum('actualCash'));
-  $('cardDiscrepancy').textContent = rp(sum('discrepancy'));
-  $('cardExpenditure').textContent = rp(sum('totalOpex'));
-  $('cardPrive').textContent = rp(sum('priveAmount'));
-  $('cardNet').textContent = rp(sum('netProfit'));
-
-  renderPaymentTable(gross, cash, qris);
-  renderChecklistTable(day);
-  renderCharts(date);
-  renderHistory();
+  renderAlerts(rows);
+  renderPayment(gross, cash, qris);
+  renderTopProducts(list);
+  renderTrend(rows, from, to);
+  renderDistribution(list);
+  renderWithdrawals(wd);
+  renderClosingList(rows);
 }
 
-function renderPaymentTable(gross, cash, qris) {
+function renderAlerts(rows) {
+  const bad = rows.filter(({ k }) => k.diff !== 0 || k.unrecorded !== 0);
+  $('alertList').innerHTML = bad.length ? bad.map(({ c, k }) => {
+    const parts = [];
+    if (k.diff) parts.push(k.diff < 0 ? `Kas kurang ${rp(-k.diff)}` : `Kas lebih ${rp(k.diff)}`);
+    if (k.unrecorded) parts.push(`Omset belum tercatat per produk ${rp(k.unrecorded)}`);
+    return `<div class="alert-item tap" data-id="${c.id}">
+      <span class="alert-ic">${ic('alert')}</span>
+      <div><strong>${fmtDate(c.date)} · ${esc(c.kasirName || '-')}</strong><small>${parts.join(' · ')}</small></div>
+      <span class="chev">${ic('chev')}</span>
+    </div>`;
+  }).join('') : `<div class="ok-banner">${ic('check')}Semua laporan dalam periode ini sudah sesuai</div>`;
+}
+
+function renderPayment(gross, cash, qris) {
   const pct = (v) => gross ? ((v / gross) * 100).toFixed(1) + '%' : '0%';
   $('payTable').innerHTML = `
-    <tr><td>Tunai (Cash)</td><td class="r">${rp(cash)}</td><td class="r">${pct(cash)}</td></tr>
+    <tr><td>Tunai</td><td class="r">${rp(cash)}</td><td class="r">${pct(cash)}</td></tr>
     <tr><td>QRIS / Transfer</td><td class="r">${rp(qris)}</td><td class="r">${pct(qris)}</td></tr>
     <tr class="total"><td>Total</td><td class="r">${rp(gross)}</td><td class="r">${gross ? '100%' : '0%'}</td></tr>`;
 }
 
-function renderChecklistTable(day) {
-  const body = $('checklistTable');
-  if (!day.length) {
-    body.innerHTML = `<tr><td colspan="4" class="center muted">Belum ada laporan pada tanggal ini</td></tr>`;
-    return;
-  }
-  const badge = (ok) => ok ? '<span class="ok">✔</span>' : '<span class="no">✖</span>';
-  body.innerHTML = day.map((c) => {
-    const ck = c.checklist || {};
-    return `<tr>
-      <td>${esc(c.kasirName || '-')}</td>
-      <td class="c">${badge(ck.counted)}</td>
-      <td class="c">${badge(ck.photos)}</td>
-      <td class="c">${badge(ck.stock)}</td>
-    </tr>`;
-  }).join('');
+function renderTopProducts(list) {
+  const agg = {};
+  list.forEach((c) => (c.items || []).forEach((i) => {
+    const a = agg[i.id] || (agg[i.id] = { name: i.name, qty: 0, rev: 0, hpp: 0 });
+    a.qty += num(i.qty);
+    a.rev += num(i.qty) * num(i.price);
+    a.hpp += num(i.qty) * num(costs[i.id]);
+  }));
+  const rows = Object.values(agg).sort((a, b) => b.rev - a.rev).slice(0, 8);
+  $('topProducts').innerHTML = rows.length ? rows.map((r) => `
+    <tr><td>${esc(r.name)}</td><td class="c">${r.qty}</td><td class="r">${rp(r.rev)}</td>
+    <td class="r ${r.rev - r.hpp < 0 ? 'no' : 'ok'}">${rp(r.rev - r.hpp)}</td></tr>`).join('')
+    : `<tr><td colspan="4" class="muted center">Belum ada produk tercatat pada periode ini</td></tr>`;
 }
 
-function renderCharts(endDate) {
+function renderTrend(rows, from, to) {
   if (typeof Chart === 'undefined') return;
-  const GREEN = '#1d4d2c', GOLD = '#c9963e';
-  const labels = lastDates(endDate, 7);
-  const sumOn = (date, key) => allClosings
-    .filter((c) => c.date === date)
-    .reduce((s, c) => s + num(c[key]), 0);
-
-  const cashSeries = labels.map((d) => sumOn(d, 'cashRevenue'));
-  const qrisSeries = labels.map((d) => sumOn(d, 'qrisRevenue'));
-  const dayLabels = labels.map((d) =>
-    new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'short' }));
-
+  const buckets = buildBuckets(from, to);
+  const sumB = (b, key) => rows.filter((r) => b.match(r.c)).reduce((s, r) => s + r.k[key], 0);
   charts.trend?.destroy();
   charts.trend = new Chart($('chartTrend'), {
     type: 'bar',
     data: {
-      labels: dayLabels,
+      labels: buckets.map((b) => b.label),
       datasets: [
-        { label: 'Tunai', data: cashSeries, backgroundColor: GREEN, borderRadius: 4 },
-        { label: 'QRIS', data: qrisSeries, backgroundColor: GOLD, borderRadius: 4 }
+        { label: 'Omset', data: buckets.map((b) => sumB(b, 'gross')), backgroundColor: GREEN, borderRadius: 4 },
+        { label: 'Laba bersih', data: buckets.map((b) => sumB(b, 'net')), backgroundColor: GOLD, borderRadius: 4 }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom' } },
-      scales: { y: { beginAtZero: true, ticks: { callback: (v) => Number(v).toLocaleString('id-ID') } } }
+      scales: { y: { ticks: { callback: (v) => Number(v).toLocaleString('id-ID') } } }
     }
   });
+}
 
-  const totalCash = cashSeries.reduce((a, b) => a + b, 0);
-  const totalQris = qrisSeries.reduce((a, b) => a + b, 0);
+function renderDistribution(list) {
+  if (typeof Chart === 'undefined') return;
+  const catOf = Object.fromEntries(products.map((p) => [p.id, p.category || 'Umum']));
+  const map = {};
+  list.forEach((c) => (c.items || []).forEach((i) => {
+    const k = catOf[i.id] || 'Lainnya';
+    map[k] = (map[k] || 0) + num(i.qty) * num(i.price);
+  }));
+  const labels = Object.keys(map);
   charts.dist?.destroy();
   charts.dist = new Chart($('chartDist'), {
     type: 'doughnut',
     data: {
-      labels: ['Tunai', 'QRIS / Transfer'],
-      datasets: [{ data: [totalCash, totalQris], backgroundColor: [GREEN, GOLD], borderWidth: 0 }]
+      labels: labels.length ? labels : ['Belum ada data'],
+      datasets: [{
+        data: labels.length ? labels.map((k) => map[k]) : [1],
+        backgroundColor: labels.length ? PALETTE.slice(0, labels.length) : ['#e7dbb8'],
+        borderWidth: 0
+      }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'right' } }
-    }
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
   });
 }
 
-function renderHistory() {
-  const tbody = $('closingTableBody');
-  if (!allClosings.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="center muted">Belum ada data</td></tr>`;
+function renderWithdrawals(wd) {
+  $('withdrawList').innerHTML = wd.length ? wd.map((w) => `
+    <div class="row-card">
+      <span class="rc-ic">${ic('wallet')}</span>
+      <div class="rc-main"><strong>${rp(w.amount)}</strong><small>${fmtDate(w.date)} · ${esc(w.note || 'Tanpa catatan')}</small></div>
+      <button class="rc-del" data-del-w="${w.id}" aria-label="Hapus">${ic('trash')}</button>
+    </div>`).join('') : `<p class="muted center pad-y">Belum ada pengambilan pada periode ini</p>`;
+}
+$('withdrawList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-del-w]');
+  if (!b || !confirm('Hapus catatan pengambilan ini?')) return;
+  try { await db.collection(C.withdrawals).doc(b.dataset.delW).delete(); toast('Catatan dihapus'); }
+  catch (err) { alert('Gagal hapus: ' + err.message); }
+});
+
+$('btnAddWithdraw').addEventListener('click', () => {
+  openSheet(`
+    <h3 class="sheet-title">Catat pengambilan owner</h3>
+    <p class="hint">Pengambilan ini mengurangi uang yang seharusnya ada di laci pada tanggal tersebut, sehingga selisih kas tetap akurat.</p>
+    <div class="field"><label for="wdDate">Tanggal</label><input type="date" id="wdDate" value="${todayStr()}"></div>
+    <div class="field"><label for="wdAmount">Jumlah</label><div class="money"><span>Rp</span><input type="number" id="wdAmount" inputmode="numeric" min="1"></div></div>
+    <div class="field"><label for="wdNote">Catatan</label><input type="text" id="wdNote" placeholder="mis. setoran ke bank"></div>
+    <button class="btn-primary" id="wdSave">${ic('check')}Simpan</button>
+  `, () => {
+    $('wdSave').onclick = async () => {
+      const amount = num($('wdAmount').value);
+      if (amount <= 0) return toast('Isi jumlah pengambilan');
+      try {
+        await db.collection(C.withdrawals).add({
+          date: $('wdDate').value, amount, note: $('wdNote').value.trim(),
+          by: profile.name, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        closeSheet();
+        toast('Pengambilan dicatat');
+      } catch (err) { alert('Gagal menyimpan: ' + err.message); }
+    };
+  });
+});
+
+function renderClosingList(rows) {
+  const el = $('closingList');
+  if (!rows.length) {
+    el.innerHTML = `<p class="muted center pad-y">Belum ada laporan pada periode ini</p>`;
     return;
   }
-  tbody.innerHTML = allClosings.map((c) => {
-    const d = num(c.discrepancy);
-    const status = d === 0 ? '<span class="ok">PAS</span>'
-      : d < 0 ? `<span class="no">Kurang ${rp(-d)}</span>`
-      : `<span class="warn">Lebih ${rp(d)}</span>`;
-    const imgs = (c.proofImages || [])
-      .map((u) => `<img src="${esc(u)}" class="thumb" data-url="${esc(u)}" alt="Nota">`).join('') || '-';
-    return `<tr>
-      <td><strong>${esc(c.date)}</strong></td>
-      <td>${esc(c.kasirName || '-')}</td>
-      <td class="r">${rp(c.cashRevenue)}</td>
-      <td class="r">${rp(c.qrisRevenue)}</td>
-      <td class="r"><strong>${rp(c.grossRevenue)}</strong></td>
-      <td class="r">${rp(c.totalOpex)}</td>
-      <td class="r ok">${rp(c.netProfit)}</td>
-      <td>${status}</td>
-      <td>${imgs}</td>
-      <td>${esc(c.notes || '-')}</td>
-    </tr>`;
+  el.innerHTML = rows.map(({ c, k }) => {
+    const st = k.diff === 0 ? `<span class="chip ok">Pas</span>`
+      : k.diff < 0 ? `<span class="chip no">Kurang ${rp(-k.diff)}</span>`
+      : `<span class="chip warn">Lebih ${rp(k.diff)}</span>`;
+    return `<div class="closing-card tap" data-id="${c.id}">
+      <div>
+        <div class="cc-head"><strong>${fmtDate(c.date)}</strong>${st}</div>
+        <small>${esc(c.kasirName || '-')} · Omset ${rp(k.gross)} · Laba ${rp(k.net)}</small>
+      </div>
+      <span class="chev">${ic('chev')}</span>
+    </div>`;
   }).join('');
 }
 
-$('dashDate').addEventListener('change', renderDashboard);
-$('closingTableBody').addEventListener('click', (e) => {
-  if (e.target.classList.contains('thumb')) openModal(e.target.dataset.url);
-});
+// Klik daftar laporan & peringatan → detail
+['closingList', 'alertList'].forEach((id) => $(id).addEventListener('click', (e) => {
+  const card = e.target.closest('[data-id]');
+  if (card) openClosingDetail(card.dataset.id);
+}));
 
-// ============================================================
-// MODAL FOTO
-// ============================================================
-function openModal(url) {
-  $('imgFull').src = url;
-  $('imageModal').classList.add('show');
-}
-function closeModal() {
-  $('imageModal').classList.remove('show');
-}
-$('imageModal').addEventListener('click', closeModal);
+function openClosingDetail(id) {
+  const c = allClosings.find((x) => x.id === id);
+  if (!c) return;
+  const k = calcClosing(c, withdrawalsByDate());
+  const itemRows = (c.items || []).map((i) => `
+    <div class="line"><span>${esc(i.name)}<small>${i.qty} × ${rp(i.price)}</small></span><b>${rp(i.qty * num(i.price))}</b></div>`).join('')
+    || `<p class="muted">Tidak ada produk dicatat</p>`;
+  const opexHtml = (c.opex || []).map((o) => `
+    <div class="line"><span>${esc(o.desc || '-')}<small>${o.fromDrawer ? 'dari laci' : 'bukan dari laci'}</small></span><b>${rp(o.amount)}</b></div>`).join('')
+    || `<p class="muted">Tidak ada pengeluaran</p>`;
+  const ck = c.checklist || {};
+  const chk = [['counted', 'Uang dihitung'], ['photos', 'Nota difoto'], ['stock', 'Stok dicek']]
+    .map(([key, label]) => `<span class="chip ${ck[key] ? 'ok' : 'no'}">${label}</span>`).join(' ');
+  const photos = (c.proofImages || []).map((u) =>
+    `<img class="photo-mini" src="${esc(u)}" data-url="${esc(u)}" alt="Nota">`).join('')
+    || `<p class="muted">Tidak ada foto</p>`;
 
-// ============================================================
-// EXPORT EXCEL (browser: download, Android: share)
-// ============================================================
-async function saveWorkbook(wb, filename) {
-  if (isNative()) {
-    const P = Capacitor.Plugins;
-    const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
-    const { uri } = await P.Filesystem.writeFile({
-      path: filename, data: b64, directory: 'CACHE', recursive: true
+  openSheet(`
+    <h3 class="sheet-title">${fmtDate(c.date)}</h3>
+    <p class="hint">Kasir: ${esc(c.kasirName || '-')}</p>
+
+    <h4 class="sub-hd">Penjualan</h4>
+    <div class="sum-block">
+      <div class="line"><span>Modal awal</span><b>${rp(c.startingCash)}</b></div>
+      <div class="line"><span>Tunai</span><b>${rp(c.cashRevenue)}</b></div>
+      <div class="line"><span>QRIS</span><b>${rp(c.qrisRevenue)}</b></div>
+      <div class="line total"><span>Omset</span><b>${rp(k.gross)}</b></div>
+      <div class="line"><span>HPP produk</span><b>${rp(k.hpp)}</b></div>
+      <div class="line"><span>Pengeluaran toko</span><b>${rp(k.opexTotal)}</b></div>
+      <div class="line total"><span>Laba bersih</span><b>${rp(k.net)}</b></div>
+      ${k.unrecorded ? `<div class="line"><span>Omset belum tercatat per produk<small>Periksa dengan kasir</small></span><b class="warn">${rp(k.unrecorded)}</b></div>` : ''}
+    </div>
+
+    <h4 class="sub-hd">Kas laci</h4>
+    <div class="sum-block">
+      <div class="line"><span>Seharusnya di laci</span><b>${rp(k.expected)}</b></div>
+      <div class="line"><span>Uang fisik</span><b>${rp(c.actualCash)}</b></div>
+      <div class="line total"><span>Selisih</span><b class="${k.diff === 0 ? 'ok' : k.diff < 0 ? 'no' : 'warn'}">${signedRp(k.diff)}</b></div>
+    </div>
+
+    <h4 class="sub-hd">Produk terjual</h4>
+    <div class="sum-block">${itemRows}</div>
+
+    <h4 class="sub-hd">Pengeluaran</h4>
+    <div class="sum-block">${opexHtml}</div>
+
+    <h4 class="sub-hd">Checklist</h4>
+    <p>${chk}</p>
+
+    ${c.notes ? `<h4 class="sub-hd">Catatan kasir</h4><p class="hint">${esc(c.notes)}</p>` : ''}
+
+    <h4 class="sub-hd">Foto nota</h4>
+    <div class="photo-row">${photos}</div>
+
+    <button class="btn-outline" data-edit="${c.id}">${ic('edit')}Edit laporan</button>
+    <button class="btn-danger" data-del="${c.id}">${ic('trash')}Hapus laporan</button>
+    <button class="btn-ghost" data-close>Tutup</button>
+  `);
+}
+
+// ---- Edit laporan (owner) ----
+function pickHtml(p, q) {
+  return `<div class="pick ${q ? 'on' : ''}" data-id="${p.id}">
+    <div class="pick-info"><strong>${esc(p.name)}</strong><small>${rp(p.price)}</small></div>
+    <div class="stepper">
+      <button type="button" class="step" data-step="-1" aria-label="Kurangi">${ic('minus')}</button>
+      <span class="qty">${q}</span>
+      <button type="button" class="step" data-step="1" aria-label="Tambah">${ic('plus')}</button>
+    </div></div>`;
+}
+
+function opexEditHtml(desc = '', amount = 0, drawer = true) {
+  return `<div class="opex-row">
+    <div class="opex-top">
+      <input type="text" class="opex-desc" placeholder="Nama belanja" value="${esc(desc)}">
+      <input type="number" class="opex-amount" placeholder="Rp" min="0" inputmode="numeric" value="${num(amount)}">
+      <button type="button" class="icon-btn" aria-label="Hapus">${ic('x')}</button>
+    </div>
+    <label class="switch-row"><input type="checkbox" class="opex-drawer" ${drawer ? 'checked' : ''}><span class="switch"></span>Dibayar dari uang laci</label>
+  </div>`;
+}
+
+function openEditClosing(id) {
+  const c = allClosings.find((x) => x.id === id);
+  if (!c) return;
+  const eQty = {};
+  (c.items || []).forEach((i) => { eQty[i.id] = num(i.qty); });
+  // Produk yang sudah tercatat tapi sudah dinonaktifkan tetap bisa diedit
+  const prodList = [
+    ...products,
+    ...(c.items || []).filter((i) => !products.some((p) => p.id === i.id))
+      .map((i) => ({ id: i.id, name: i.name, price: i.price, active: false }))
+  ];
+  openSheet(`
+    <h3 class="sheet-title">Edit laporan</h3>
+    <p class="hint">${fmtDate(c.date)} · ${esc(c.kasirName || '-')}</p>
+
+    <div class="field"><label for="eStart">Modal awal di laci</label>
+      <div class="money"><span>Rp</span><input type="number" id="eStart" inputmode="numeric" value="${num(c.startingCash)}"></div></div>
+    <div class="row2">
+      <div class="field"><label for="eCash">Tunai</label>
+        <div class="money"><span>Rp</span><input type="number" id="eCash" inputmode="numeric" value="${num(c.cashRevenue)}"></div></div>
+      <div class="field"><label for="eQris">QRIS</label>
+        <div class="money"><span>Rp</span><input type="number" id="eQris" inputmode="numeric" value="${num(c.qrisRevenue)}"></div></div>
+    </div>
+    <div class="field"><label for="eActual">Uang fisik di laci</label>
+      <div class="money"><span>Rp</span><input type="number" id="eActual" inputmode="numeric" value="${num(c.actualCash)}"></div></div>
+
+    <h4 class="sub-hd">Produk terjual</h4>
+    <div id="ePicker" class="picker">${prodList.map((p) => pickHtml(p, eQty[p.id] || 0)).join('')}</div>
+
+    <h4 class="sub-hd">Pengeluaran</h4>
+    <div id="eOpex">${(c.opex || []).map((o) => opexEditHtml(o.desc, o.amount, o.fromDrawer)).join('')}</div>
+    <button type="button" class="btn-outline" id="eAddOpex">${ic('plus')}Tambah belanja</button>
+
+    <div class="field" style="margin-top:14px"><label for="eNotes">Catatan</label>
+      <textarea id="eNotes" rows="2">${esc(c.notes || '')}</textarea></div>
+
+    <button class="btn-primary" id="eSave">${ic('check')}Simpan perubahan</button>
+    <button class="btn-ghost" data-close>Batal</button>
+  `, () => {
+    $('ePicker').addEventListener('click', (e) => {
+      const b = e.target.closest('.step');
+      if (!b) return;
+      const card = b.closest('.pick');
+      const pid = card.dataset.id;
+      eQty[pid] = Math.max(0, (eQty[pid] || 0) + Number(b.dataset.step));
+      card.querySelector('.qty').textContent = eQty[pid];
+      card.classList.toggle('on', eQty[pid] > 0);
     });
-    await P.Share.share({ title: filename, files: [uri], dialogTitle: 'Simpan / Bagikan Laporan' });
-  } else {
-    XLSX.writeFile(wb, filename);
+    $('eOpex').addEventListener('click', (e) => {
+      const b = e.target.closest('.icon-btn');
+      if (b) b.closest('.opex-row').remove();
+    });
+    $('eAddOpex').addEventListener('click', () => {
+      $('eOpex').insertAdjacentHTML('beforeend', opexEditHtml());
+    });
+    $('eSave').onclick = async () => {
+      const cashRevenue = num($('eCash').value);
+      const qrisRevenue = num($('eQris').value);
+      const items = Object.entries(eQty).filter(([, q]) => q > 0).map(([pid, q]) => {
+        const prev = (c.items || []).find((i) => i.id === pid);
+        const p = prodList.find((x) => x.id === pid);
+        return { id: pid, name: p.name, qty: q, price: prev ? num(prev.price) : num(p.price) };
+      });
+      const opex = [...document.querySelectorAll('#eOpex .opex-row')].map((r) => ({
+        desc: r.querySelector('.opex-desc').value.trim(),
+        amount: num(r.querySelector('.opex-amount').value),
+        fromDrawer: r.querySelector('.opex-drawer').checked
+      })).filter((o) => o.desc || o.amount);
+      const opexTotal = opex.reduce((s, o) => s + o.amount, 0);
+      try {
+        await db.collection(C.closings).doc(c.id).update({
+          startingCash: num($('eStart').value),
+          cashRevenue, qrisRevenue,
+          grossRevenue: cashRevenue + qrisRevenue,
+          items,
+          itemsRevenue: items.reduce((s, i) => s + i.qty * i.price, 0),
+          opex, opexTotal,
+          opexDrawer: opex.filter((o) => o.fromDrawer).reduce((s, o) => s + o.amount, 0),
+          actualCash: num($('eActual').value),
+          notes: $('eNotes').value.trim(),
+          editedBy: profile.name,
+          editedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        closeSheet();
+        toast('Laporan diperbarui');
+      } catch (err) {
+        alert('Gagal menyimpan: ' + err.message);
+      }
+    };
+  });
+}
+
+async function deleteClosing(id) {
+  if (!confirm('Hapus laporan ini? Kasir bisa mengirim ulang untuk tanggal tersebut setelah dihapus.')) return;
+  try {
+    await db.collection(C.closings).doc(id).delete();
+    closeSheet();
+    toast('Laporan dihapus');
+  } catch (err) { alert('Gagal hapus: ' + err.message); }
+}
+
+// ============================================================
+// PENGATURAN
+// ============================================================
+function renderSettings() {
+  if (!profile) return;
+  $('settingsProfile').innerHTML = `
+    <div class="pc-avatar">${avatarHtml(profile)}</div>
+    <div class="pc-main"><strong>${esc(profile.name)}</strong><small>@${esc(profile.username)}</small></div>
+    <span class="role-pill">${profile.role === 'owner' ? 'Owner' : 'Kasir'}</span>`;
+
+  const owner = profile.role === 'owner';
+  const items = [
+    ['editProfile', 'user', 'Edit profil', 'Nama dan foto akun', false],
+    ['password', 'key', 'Ganti password', 'Ubah kata sandi akun', false],
+    ['users', 'users', 'Kelola pengguna', 'Tambah akun & atur role', true],
+    ['exportXlsx', 'chart', 'Export laporan (Excel)', 'Sesuai periode di Beranda', true],
+    ['backup', 'download', 'Backup data (JSON)', 'Salin semua data ke file', true],
+    ['about', 'info', 'Tentang & cek koneksi', 'Versi aplikasi dan tes Drive', false],
+    ['logout', 'logout', 'Keluar', 'Akhiri sesi di perangkat ini', false, 'danger']
+  ].filter((i) => !i[4] || owner);
+
+  $('settingsMenu').innerHTML = items.map(([act, icon, title, sub, , cls]) => `
+    <button class="menu-item ${cls || ''}" data-act="${act}">
+      <span class="mi-ic">${ic(icon)}</span>
+      <span class="mi-txt"><strong>${title}</strong><small>${sub}</small></span>
+      <span class="mi-go">${ic('chev')}</span>
+    </button>`).join('');
+}
+
+$('settingsMenu').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const actions = {
+    editProfile: openEditProfile,
+    password: openPasswordSheet,
+    users: openUsersSheet,
+    exportXlsx: exportWorkbook,
+    backup: backupAll,
+    about: openAbout,
+    logout: () => { if (confirm('Keluar dari aplikasi?')) auth.signOut(); }
+  };
+  try { await actions[b.dataset.act](); }
+  catch (err) { alert('Terjadi kesalahan: ' + err.message); }
+});
+
+// ---- Edit profil (nama + foto) ----
+function openEditProfile() {
+  pendingAvatar = null;
+  openSheet(`
+    <h3 class="sheet-title">Edit profil</h3>
+    <label class="avatar-edit" for="avatarInput">
+      <div class="avatar-xl" id="avatarPreview">${avatarHtml(profile)}<span class="avatar-cam">${ic('camera')}</span></div>
+      <small>Ketuk untuk mengganti foto</small>
+    </label>
+    <input type="file" id="avatarInput" accept="image/*" class="hidden">
+    <div class="field"><label for="pfName">Nama lengkap</label><input type="text" id="pfName" value="${esc(profile.name)}"></div>
+    <button class="btn-primary" id="pfSave">${ic('check')}Simpan perubahan</button>
+  `, () => {
+    $('avatarInput').addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try {
+        pendingAvatar = await compressImage(f, AVATAR_SIDE);
+        $('avatarPreview').innerHTML = `<img src="${URL.createObjectURL(pendingAvatar)}" alt="">` + `<span class="avatar-cam">${ic('camera')}</span>`;
+      } catch (err) { toast('Foto gagal diproses'); }
+    });
+    $('pfSave').onclick = saveProfile;
+  });
+}
+
+async function saveProfile() {
+  const name = $('pfName').value.trim();
+  if (!name) return toast('Nama tidak boleh kosong');
+  const btn = $('pfSave');
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    const upd = { name };
+    if (pendingAvatar) {
+      const r = await uploadToDrive(pendingAvatar, `avatar_${profile.uid}_${Date.now()}.jpg`);
+      upd.photoUrl = r.url;
+    }
+    await db.collection(C.users).doc(profile.uid).update(upd);
+    profile = { ...profile, ...upd };
+    paintHeader();
+    renderSettings();
+    closeSheet();
+    toast('Profil diperbarui');
+  } catch (err) {
+    alert('Gagal menyimpan: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = `${ic('check')}Simpan perubahan`;
   }
 }
 
-$('btnExport').addEventListener('click', async () => {
-  if (!allClosings.length) return alert('Belum ada data laporan untuk di-export!');
-  const rows = allClosings.map((c) => ({
-    'Tanggal': c.date,
-    'Kasir': c.kasirName,
-    'Modal Kas Awal': c.startingCash,
-    'Uang Tunai (Cash)': c.cashRevenue,
-    'Uang QRIS/Transfer': c.qrisRevenue,
-    'Jumlah Transaksi': c.transactionCount,
-    'Total Masuk': c.grossRevenue,
-    'Total Pengeluaran Toko': c.totalOpex,
-    'Ambil Uang Owner': c.priveAmount,
-    'Keuntungan Bersih': c.netProfit,
-    'Seharusnya di Laci': c.expectedCash,
-    'Uang Fisik di Laci': c.actualCash,
-    'Selisih Kas': c.discrepancy,
-    'Catatan': c.notes
-  }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Laporan Tutup Kasir');
-  try {
-    await saveWorkbook(wb, `Laporan_Kantin_${todayStr()}.xlsx`);
-  } catch (err) {
-    alert('Gagal export: ' + err.message);
-  }
-});
+// ---- Ganti password ----
+function openPasswordSheet() {
+  openSheet(`
+    <h3 class="sheet-title">Ganti password</h3>
+    <div class="field"><label for="pwOld">Password lama</label><input type="password" id="pwOld" autocomplete="current-password"></div>
+    <div class="field"><label for="pwNew">Password baru (min. 6)</label><input type="password" id="pwNew" autocomplete="new-password"></div>
+    <div class="field"><label for="pwConfirm">Ulangi password baru</label><input type="password" id="pwConfirm" autocomplete="new-password"></div>
+    <button class="btn-primary" id="pwSave">${ic('check')}Ganti password</button>
+  `, () => {
+    $('pwSave').onclick = async () => {
+      const oldPw = $('pwOld').value, newPw = $('pwNew').value, conf = $('pwConfirm').value;
+      if (newPw.length < 6) return toast('Password baru minimal 6 karakter');
+      if (newPw !== conf) return toast('Konfirmasi password tidak sama');
+      try {
+        const u = auth.currentUser;
+        await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, oldPw));
+        await u.updatePassword(newPw);
+        closeSheet();
+        toast('Password berhasil diganti');
+      } catch (err) {
+        toast(['auth/wrong-password', 'auth/invalid-credential'].includes(err.code) ? 'Password lama salah' : 'Gagal: ' + err.message);
+      }
+    };
+  });
+}
 
-// ============================================================
-// MANAJEMEN PENGGUNA (KHUSUS OWNER)
-// ============================================================
-function renderUsers() {
-  $('userList').innerHTML = allUsers.map((u) => {
-    const self = u.uid === profile.uid;
-    return `<div class="user-row">
-      <div class="user-info"><strong>${esc(u.name)}</strong><small>@${esc(u.username)}</small></div>
-      <select class="role-select" data-uid="${esc(u.uid)}" ${self ? 'disabled' : ''}>
+// ---- Kelola pengguna (owner) ----
+function openUsersSheet() {
+  openSheet(`
+    <h3 class="sheet-title">Kelola pengguna</h3>
+    <p class="hint">Role: Kasir, Owner, atau Nonaktif (akun tidak bisa login).</p>
+    <div id="usersSheetList" class="list"></div>
+    <button class="btn-primary" id="uAdd">${ic('plus')}Tambah akun</button>
+  `, () => {
+    renderUsersList();
+    $('uAdd').onclick = openAddUserSheet;
+  });
+}
+
+function renderUsersList() {
+  const el = $('usersSheetList');
+  if (!el) return;
+  el.innerHTML = allUsers.map((u) => {
+    const self = u.id === profile.uid;
+    return `<div class="row-card">
+      <div class="avatar-sm">${avatarHtml(u)}</div>
+      <div class="rc-main"><strong>${esc(u.name)}</strong><small>@${esc(u.username)}${self ? ' · Anda' : ''}</small></div>
+      <select class="role-sel" data-uid="${u.id}" ${self ? 'disabled' : ''}>
         <option value="kasir" ${u.role === 'kasir' ? 'selected' : ''}>Kasir</option>
         <option value="owner" ${u.role === 'owner' ? 'selected' : ''}>Owner</option>
+        <option value="nonaktif" ${u.role === 'nonaktif' ? 'selected' : ''}>Nonaktif</option>
       </select>
     </div>`;
-  }).join('') || '<p class="muted">Belum ada pengguna.</p>';
+  }).join('');
 }
-
-$('userList').addEventListener('change', async (e) => {
-  if (!e.target.classList.contains('role-select')) return;
-  try {
-    await db.collection(COL_USERS).doc(e.target.dataset.uid).update({ role: e.target.value });
-  } catch (err) {
-    alert('Gagal mengubah role: ' + err.message);
-  }
+document.addEventListener('change', async (e) => {
+  if (!e.target.classList.contains('role-sel')) return;
+  try { await db.collection(C.users).doc(e.target.dataset.uid).update({ role: e.target.value }); toast('Role diperbarui'); }
+  catch (err) { alert('Gagal mengubah role: ' + err.message); }
 });
 
-// Auth kedua agar akun owner tidak ikut logout saat membuat akun baru
+let secondaryAuth = null;
 function getSecondaryAuth() {
   if (!secondaryAuth) {
-    const app = firebase.apps.find((a) => a.name === 'secondary')
-      || firebase.initializeApp(firebaseConfig, 'secondary');
+    const app = firebase.apps.find((a) => a.name === 'secondary') || firebase.initializeApp(firebaseConfig, 'secondary');
     secondaryAuth = app.auth();
   }
   return secondaryAuth;
 }
 
-$('formAddUser').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const username = $('newUsername').value.trim().toLowerCase();
-  const name = $('newName').value.trim();
-  const password = $('newPassword').value;
-  const role = $('newRole').value;
+function openAddUserSheet() {
+  openSheet(`
+    <h3 class="sheet-title">Tambah akun</h3>
+    <div class="field"><label for="nuName">Nama lengkap</label><input type="text" id="nuName"></div>
+    <div class="field"><label for="nuUser">Username</label><input type="text" id="nuUser" placeholder="contoh: budi" autocapitalize="none"></div>
+    <div class="field"><label for="nuPass">Password (min. 6)</label><input type="password" id="nuPass" autocomplete="new-password"></div>
+    <div class="field"><label for="nuRole">Role</label>
+      <select id="nuRole"><option value="kasir">Kasir</option><option value="owner">Owner</option></select>
+    </div>
+    <button class="btn-primary" id="nuSave">${ic('check')}Buat akun</button>
+  `, () => {
+    $('nuSave').onclick = async () => {
+      const username = $('nuUser').value.trim().toLowerCase();
+      const name = $('nuName').value.trim();
+      const password = $('nuPass').value;
+      const role = $('nuRole').value;
+      if (!name) return toast('Isi nama lengkap');
+      if (!/^[a-z0-9._]{3,20}$/.test(username)) return toast('Username 3–20 karakter: huruf kecil, angka, titik, atau _');
+      if (password.length < 6) return toast('Password minimal 6 karakter');
+      const btn = $('nuSave');
+      btn.disabled = true;
+      try {
+        const sAuth = getSecondaryAuth();
+        const cred = await sAuth.createUserWithEmailAndPassword(usernameToEmail(username), password);
+        await db.collection(C.users).doc(cred.user.uid).set({
+          username, name, role, photoUrl: '',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        await sAuth.signOut();
+        toast(`Akun @${username} dibuat`);
+        openUsersSheet();
+      } catch (err) {
+        alert('Gagal membuat akun: ' + (err.code === 'auth/email-already-in-use' ? 'Username sudah dipakai.' : err.message));
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  });
+}
 
-  if (!/^[a-z0-9._]{3,20}$/.test(username)) {
-    return alert('Username 3-20 karakter: huruf kecil, angka, titik, atau underscore.');
+// ---- Export Excel (periode Beranda) ----
+function saveFile(filename, base64, mime) {
+  if (isNative()) {
+    const P = Capacitor.Plugins;
+    return P.Filesystem.writeFile({ path: filename, data: base64, directory: 'CACHE', recursive: true })
+      .then(({ uri }) => P.Share.share({ title: filename, files: [uri], dialogTitle: 'Simpan / Bagikan' }));
   }
-  if (password.length < 6) return alert('Password minimal 6 karakter.');
+  const bin = atob(base64);
+  const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  return Promise.resolve();
+}
 
-  const btn = $('btnAddUser');
-  btn.disabled = true;
-  btn.textContent = 'Membuat akun...';
-  try {
-    const sAuth = getSecondaryAuth();
-    const cred = await sAuth.createUserWithEmailAndPassword(usernameToEmail(username), password);
-    await db.collection(COL_USERS).doc(cred.user.uid).set({
-      username, name, role,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    await sAuth.signOut();
-    alert(`Akun @${username} berhasil dibuat.`);
-    $('formAddUser').reset();
-  } catch (err) {
-    const msg = err.code === 'auth/email-already-in-use' ? 'Username sudah dipakai.' : err.message;
-    alert('Gagal membuat akun: ' + msg);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Buat Akun';
-  }
-});
+async function exportWorkbook() {
+  if (!allClosings.length) return toast('Belum ada data laporan');
+  const { from, to } = getRange();
+  const list = inRange(allClosings, from, to);
+  const wdMap = withdrawalsByDate();
+  const laporan = list.map((c) => {
+    const k = calcClosing(c, wdMap);
+    return {
+      'Tanggal': c.date, 'Kasir': c.kasirName, 'Modal Awal': num(c.startingCash),
+      'Tunai': num(c.cashRevenue), 'QRIS': num(c.qrisRevenue), 'Omset': k.gross,
+      'HPP': k.hpp, 'Pengeluaran Toko': k.opexTotal, 'Laba Bersih': k.net,
+      'Seharusnya di Laci': k.expected, 'Uang Fisik': num(c.actualCash), 'Selisih Kas': k.diff,
+      'Omset Belum Tercatat per Produk': k.unrecorded, 'Catatan': c.notes || ''
+    };
+  });
+  const produk = products.map((p) => ({
+    'Produk': p.name, 'Kategori': p.category, 'Harga Jual': num(p.price),
+    'HPP': num(costs[p.id]), 'Status': p.active === false ? 'Nonaktif' : 'Aktif'
+  }));
+  const wdRows = inRange(withdrawals, from, to).map((w) => ({
+    'Tanggal': w.date, 'Jumlah': num(w.amount), 'Catatan': w.note || '', 'Dicatat oleh': w.by || ''
+  }));
+  const sheet = (rows) => XLSX.utils.json_to_sheet(rows.length ? rows : [{ Keterangan: 'Tidak ada data' }]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheet(laporan), 'Laporan');
+  XLSX.utils.book_append_sheet(wb, sheet(produk), 'Produk');
+  XLSX.utils.book_append_sheet(wb, sheet(wdRows), 'Pengambilan Owner');
+  const b64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+  await saveFile(`Barokah_${from}_sd_${to}.xlsx`, b64,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  toast('File Excel siap');
+}
+
+// ---- Backup JSON (semua data) ----
+async function backupAll() {
+  const clean = (o) => JSON.parse(JSON.stringify(o, (k, v) =>
+    (v && typeof v === 'object' && 'seconds' in v && 'nanoseconds' in v)
+      ? new Date(v.seconds * 1000).toISOString() : v));
+  const payload = clean({
+    app: 'Barokah', version: APP_VERSION, exportedAt: new Date().toISOString(),
+    products, productCosts: costs, closings: allClosings, withdrawals, users: allUsers
+  });
+  const json = JSON.stringify(payload, null, 2);
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  await saveFile(`barokah_backup_${todayStr()}.json`, b64, 'application/json');
+  toast('Backup dibuat');
+}
+
+// ---- Tentang & tes koneksi ----
+function openAbout() {
+  openSheet(`
+    <div class="empty" style="padding-top:8px">
+      <img src="logo.svg" alt="" style="width:76px;height:76px;border-radius:22px">
+      <h3 class="sheet-title" style="margin-top:12px">BAROKAH</h3>
+      <p class="hint">Tutup Kasir Harian · Versi ${APP_VERSION}</p>
+    </div>
+    <div class="sum-block">
+      <div class="line"><span>Database</span><b>Firestore</b></div>
+      <div class="line"><span>Foto nota</span><b>Google Drive</b></div>
+      <div class="line"><span>Status Drive</span><b id="driveStatus">Belum dites</b></div>
+    </div>
+    <button class="btn-outline" id="btnTestDrive">Tes koneksi Drive</button>
+    <button class="btn-ghost" data-close>Tutup</button>
+  `, () => {
+    $('btnTestDrive').onclick = async () => {
+      $('driveStatus').textContent = 'Menguji...';
+      try {
+        const r = await fetch(DRIVE_UPLOAD_URL);
+        const j = await r.json();
+        $('driveStatus').textContent = j.ok ? `Terhubung (v${j.version})` : 'Respons tidak valid';
+      } catch (err) {
+        $('driveStatus').textContent = 'Gagal terhubung';
+      }
+    };
+  });
+}
 
 // ============================================================
 // INIT
 // ============================================================
-$('closingDate').value = todayStr();
-$('dashDate').value = todayStr();
-updateCalc();
+hydrate();
+$('togglePw').innerHTML = ic('eye');
+const now = new Date();
+$('dashFrom').value = toISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+$('dashTo').value = todayStr();
+$('dashFrom').addEventListener('change', renderDashboard);
+$('dashTo').addEventListener('change', renderDashboard);
+renderPhotos();
