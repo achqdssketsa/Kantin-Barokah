@@ -96,3 +96,28 @@ Catatan: URL library (`/macros/library/...`) **tidak dipakai** aplikasi. Yang di
 - **Laba bersih** = omset tercatat − HPP terjual − biaya operasional.
 - **Selisih kas laci** = uang fisik − seharusnya. Seharusnya = modal + tunai − pengeluaran dari laci − pengambilan owner.
 - Owner bisa mengedit laporan (termasuk stok sisa). Jika laporan itu laporan terbaru, stok produk ikut diperbarui.
+
+
+---
+
+# Pembaruan v3.0 (ringkas + opname)
+
+## Penyimpanan foto
+Foto nota dan foto profil sekarang disimpan di **Firestore** (terkompres, sekitar 50–100 KB per foto). Tidak perlu Google Drive, Apps Script, atau Firebase Storage. Folder `apps-script/` tidak lagi dipakai.
+
+## Alur harian (kasir)
+Cukup isi: penjualan tunai, QRIS, belanja (jika ada), uang fisik di laci, checklist, dan foto. Saldo awal laci diambil otomatis dari uang fisik laporan terakhir.
+
+## Opname (owner, sekitar seminggu sekali)
+Hitung total nilai stok dua cara (nilai HPP dan nilai harga jual) dan saldo bank. Tidak perlu per produk. Aplikasi menghitung:
+- **Selisih omset:** omset tercatat dibandingkan dengan omset seharusnya dari stok (HPP terjual x rasio harga jual/HPP). Angka negatif berarti ada barang keluar yang uangnya tidak tercatat.
+- **Selisih kekayaan:** perubahan (stok HPP + bank + laci) dibandingkan dengan laba periode dikurangi pengambilan owner. Selisih yang tidak nol berarti ada uang yang masuk atau keluar tanpa catatan.
+
+## Deploy
+1. Ganti isi `www/` dan `firestore.rules`.
+2. `firebase deploy --only firestore:rules`.
+3. Upload ke GitHub; Vercel deploy otomatis.
+4. Buat APK ulang: `npm run sync` lalu `npm run open`.
+
+## Data lama
+Laporan v1 dan v2 tetap tampil. Untuk laporan lama, saldo awal laci memakai nilai yang tersimpan, dan perhitungan stok tidak tersedia.

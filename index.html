@@ -81,7 +81,7 @@
         </section>
 
         <section class="hero">
-          <p class="hero-lbl">Total Omset</p>
+          <p class="hero-lbl">Omset tercatat</p>
           <p class="hero-val" id="sumTotal">Rp 0</p>
           <div class="hero-split">
             <div><span>Tunai</span><b id="sumCash">Rp 0</b></div>
@@ -90,14 +90,14 @@
         </section>
 
         <div class="stat-grid">
-          <div class="stat dark tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Omset Tercatat</span><span class="stat-val" id="cardGross">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="box"></span><span class="stat-lbl">Omset Seharusnya (stok)</span><span class="stat-val" id="cardExpected">Rp 0</span></div>
-          <div class="stat dark tap"><span class="stat-ic" data-i="alert"></span><span class="stat-lbl">Selisih Omset</span><span class="stat-val" id="cardLeak">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="tag"></span><span class="stat-lbl">HPP Terjual</span><span class="stat-val" id="cardHpp">Rp 0</span></div>
-          <div class="stat dark tap"><span class="stat-ic" data-i="wallet"></span><span class="stat-lbl">Biaya Operasional</span><span class="stat-val" id="cardOpex">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="chart"></span><span class="stat-lbl">Laba Bersih</span><span class="stat-val" id="cardNet">Rp 0</span></div>
-          <div class="stat dark tap"><span class="stat-ic" data-i="check"></span><span class="stat-lbl">Selisih Kas Laci</span><span class="stat-val" id="cardDiff">Rp 0</span></div>
-          <div class="stat gold tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Nilai Stok (HPP)</span><span class="stat-val" id="cardStock">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="wallet"></span><span class="stat-lbl">Biaya operasional</span><span class="stat-val" id="cardBiaya">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="box"></span><span class="stat-lbl">Belanja stok</span><span class="stat-val" id="cardStokBeli">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="user"></span><span class="stat-lbl">Ambil owner</span><span class="stat-val" id="cardAmbil">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="check"></span><span class="stat-lbl">Selisih kas laci (harian)</span><span class="stat-val" id="cardKas">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="chart"></span><span class="stat-lbl">Omset seharusnya (opname)</span><span class="stat-val" id="cardOmsetSeh">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="alert"></span><span class="stat-lbl">Selisih omset (opname)</span><span class="stat-val" id="cardSelOmset">Rp 0</span></div>
+          <div class="stat gold tap"><span class="stat-ic" data-i="alert"></span><span class="stat-lbl">Selisih kekayaan (opname)</span><span class="stat-val" id="cardSelKek">Rp 0</span></div>
+          <div class="stat dark tap"><span class="stat-ic" data-i="cash"></span><span class="stat-lbl">Kekayaan toko sekarang</span><span class="stat-val" id="cardKekayaan">—</span></div>
         </div>
 
         <h3 class="sec-title">Perlu diperiksa</h3>
@@ -105,27 +105,26 @@
 
         <h3 class="sec-title">Reports</h3>
         <div class="panel">
-          <div class="panel-hd">Tren omset &amp; laba</div>
+          <div class="panel-hd">Tren omset &amp; pengeluaran</div>
           <div class="chart-box"><canvas id="chartTrend"></canvas></div>
         </div>
         <div class="panel">
-          <div class="panel-hd">Omset per kategori produk</div>
-          <div class="chart-box chart-donut"><canvas id="chartDist"></canvas></div>
-        </div>
-        <div class="panel">
           <div class="panel-hd">Metode pembayaran</div>
+          <div class="chart-box chart-donut"><canvas id="chartDist"></canvas></div>
           <table class="tbl"><tbody id="payTable"></tbody></table>
         </div>
         <div class="panel">
-          <div class="panel-hd">Produk terlaris</div>
-          <table class="tbl">
-            <thead><tr><th>Produk</th><th class="c">Qty</th><th class="r">Omset</th><th class="r">Laba</th></tr></thead>
-            <tbody id="topProducts"></tbody>
-          </table>
+          <div class="panel-hd">Rekonsiliasi per opname</div>
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead><tr><th>Periode</th><th class="r">Omset</th><th class="r">Seharusnya</th><th class="r">Selisih</th><th class="r">Kekayaan</th><th class="c">Status</th></tr></thead>
+              <tbody id="reconTable"></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="sec-row">
-          <h3 class="sec-title">Pengambilan owner</h3>
+          <h3 class="sec-title">Pengambilan &amp; setoran owner</h3>
           <button id="btnAddWithdraw" class="chip-btn"><span data-i="plus"></span>Catat</button>
         </div>
         <div id="withdrawList" class="list"></div>
@@ -144,11 +143,18 @@
         <form id="formClosing" class="form-stack" autocomplete="off">
 
           <div class="panel pad">
-            <div class="sec-hd"><span data-i="wallet"></span><h4>Uang awal &amp; penjualan</h4></div>
-            <div class="field">
-              <label for="startingCash">Modal awal di laci</label>
-              <div class="money"><span>Rp</span><input type="number" id="startingCash" inputmode="numeric" min="0" required></div>
+            <div class="sec-hd"><span data-i="cash"></span><h4>Uang &amp; penjualan</h4></div>
+
+            <div id="saldoInfo" class="saldo-info hidden">
+              <span>Saldo awal laci</span>
+              <b id="saldoAwalTxt">Rp 0</b>
+              <small>otomatis dari uang fisik laporan terakhir</small>
             </div>
+            <div id="startWrap" class="field hidden">
+              <label for="startingCash">Saldo awal laci (hanya untuk laporan pertama)</label>
+              <div class="money"><span>Rp</span><input type="number" id="startingCash" inputmode="numeric" min="0"></div>
+            </div>
+
             <div class="row2">
               <div class="field">
                 <label for="cashRevenue">Penjualan tunai</label>
@@ -162,13 +168,8 @@
           </div>
 
           <div class="panel pad">
-            <div class="sec-hd"><span data-i="box"></span><h4>Stok produk</h4></div>
-            <p class="hint">Stok awal sudah terisi otomatis. Isi <b>Masuk</b> bila ada barang baru dibeli hari ini, lalu isi <b>Sisa</b> dari hasil hitung fisik.</p>
-            <div id="productPicker" class="picker"></div>
-          </div>
-
-          <div class="panel pad">
-            <div class="sec-hd"><span data-i="tag"></span><h4>Pengeluaran &amp; belanja</h4></div>
+            <div class="sec-hd"><span data-i="wallet"></span><h4>Belanja &amp; biaya</h4></div>
+            <p class="hint">Belanja stok = barang dagang yang masuk ke stok. Biaya = gas, listrik, dan lainnya.</p>
             <div id="opexList"></div>
             <button type="button" class="btn-outline" id="btnAddOpex"><span data-i="plus"></span>Tambah belanja</button>
           </div>
@@ -182,7 +183,6 @@
             <div class="sec-hd"><span data-i="check"></span><h4>Checklist akhir hari</h4></div>
             <label class="check-row"><input type="checkbox" id="chkCounted"><span class="box"></span>Uang di laci sudah dihitung</label>
             <label class="check-row"><input type="checkbox" id="chkPhotos"><span class="box"></span>Nota &amp; bukti belanja sudah difoto</label>
-            <label class="check-row"><input type="checkbox" id="chkStock"><span class="box"></span>Stok dapur/kantin sudah dicek</label>
           </div>
 
           <div class="panel pad">
@@ -203,21 +203,22 @@
         </form>
       </div>
 
-      <!-- ===== PRODUK (OWNER) ===== -->
-      <div id="tab-products" class="tab">
+      <!-- ===== OPNAME (OWNER) ===== -->
+      <div id="tab-opname" class="tab">
+        <div id="opnameLatest"></div>
         <div class="sec-row">
-          <h3 class="sec-title">Daftar produk</h3>
-          <button id="btnAddProduct" class="chip-btn"><span data-i="plus"></span>Produk</button>
+          <h3 class="sec-title">Riwayat opname</h3>
+          <button id="btnAddOpname" class="chip-btn"><span data-i="plus"></span>Opname</button>
         </div>
-        <p class="hint">Isi harga jual, HPP per unit, dan stok. Stok diperbarui otomatis dari laporan kasir. HPP hanya terlihat oleh Owner.</p>
-        <div id="productList" class="list"></div>
+        <p class="hint">Lakukan opname sekitar seminggu sekali: hitung total nilai stok dan saldo bank. Tidak perlu per produk.</p>
+        <div id="opnameList" class="list"></div>
       </div>
 
       <!-- ===== PENGATURAN ===== -->
       <div id="tab-settings" class="tab">
         <div id="settingsProfile" class="profile-card"></div>
         <div id="settingsMenu" class="menu"></div>
-        <p class="version">Barokah · v2.0.0</p>
+        <p class="version">Kantin Barokah · v3.0.0</p>
       </div>
 
     </main>
@@ -225,7 +226,7 @@
     <nav class="bottom-nav">
       <button class="nav-btn owner-only" data-tab="dashboard"><span data-i="home"></span><small>Beranda</small></button>
       <button class="nav-btn" data-tab="kasir"><span data-i="receipt"></span><small>Tutup Kasir</small></button>
-      <button class="nav-btn owner-only" data-tab="products"><span data-i="box"></span><small>Produk</small></button>
+      <button class="nav-btn owner-only" data-tab="opname"><span data-i="scale"></span><small>Opname</small></button>
       <button class="nav-btn" data-tab="settings"><span data-i="settings"></span><small>Pengaturan</small></button>
     </nav>
   </section>

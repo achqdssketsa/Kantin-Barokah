@@ -12,6 +12,7 @@ service cloud.firestore {
       return signedIn() && roleOf(request.auth.uid) == 'owner';
     }
 
+    // Profil: user boleh ubah nama & foto sendiri, role hanya oleh owner
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isOwner());
       allow create, delete: if isOwner();
@@ -22,29 +23,39 @@ service cloud.firestore {
       );
     }
 
-    // Produk: semua user bisa baca; kasir hanya boleh mengubah field "stock" (stok sisa hitung fisik)
-    match /products/{id} {
-      allow read: if signedIn();
-      allow create, delete: if isOwner();
-      allow update: if isOwner() || (
-        signedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock'])
-      );
+    // Saldo laci terakhir (hanya info untuk kasir; perhitungan owner memakai laporan)
+    match /kas/{id} {
+      allow read, write: if signedIn();
     }
 
-    match /product_costs/{id} {
-      allow read, write: if isOwner();
-    }
-
-    // Laporan: ID = tanggal. Kasir hanya boleh CREATE; owner yang baca/ubah/hapus.
+    // Laporan harian: kasir hanya boleh CREATE, owner yang baca/ubah/hapus
     match /daily_closings/{date} {
       allow create: if signedIn()
         && request.resource.data.submittedBy == request.auth.uid
         && request.resource.data.date == date;
       allow read, update, delete: if isOwner();
+
+      // Foto nota (base64 terkompres)
+      match /photos/{pid} {
+        allow create: if signedIn()
+          && get(/databases/$(database)/documents/daily_closings/$(date)).data.submittedBy == request.auth.uid;
+        allow read, delete: if isOwner();
+      }
     }
 
+    // Opname stok & pengambilan owner: hanya owner
+    match /opname/{id} {
+      allow read, write: if isOwner();
+    }
     match /owner_withdrawals/{id} {
+      allow read, write: if isOwner();
+    }
+
+    // Koleksi lama (v2.x), dibiarkan agar data lama tetap aman
+    match /products/{id} {
+      allow read, write: if isOwner();
+    }
+    match /product_costs/{id} {
       allow read, write: if isOwner();
     }
   }

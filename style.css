@@ -455,3 +455,49 @@ button { border: 0; background: none; font: inherit; color: inherit; padding: 0;
 .opex-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .opex-kind { height: 38px; width: auto; flex: 1; min-width: 150px; padding: 0 10px; border-radius: 12px; font-size: 13px; border: 1.5px solid var(--line); background: #fff; }
 .opex-meta .switch-row { margin: 0; }
+
+/* ================= NOTIFIKASI ELEGAN (v3) ================= */
+.dlg-wrap {
+  position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: rgba(15, 33, 22, .42); backdrop-filter: blur(4px);
+  opacity: 0; transition: opacity .25s ease;
+}
+.dlg-wrap.show { opacity: 1; }
+.dlg {
+  width: 100%; max-width: 340px; padding: 26px 22px 18px; border-radius: 26px; text-align: center;
+  background: linear-gradient(180deg, #fffdf6, #fbf3dc); box-shadow: 0 24px 60px rgba(15,51,32,.35), inset 0 1px 0 #fff;
+  transform: translateY(18px) scale(.96); transition: transform .32s cubic-bezier(.2,.9,.3,1.15);
+}
+.dlg-wrap.show .dlg { transform: none; }
+.dlg-ic {
+  width: 62px; height: 62px; margin: 0 auto 14px; border-radius: 22px; padding: 16px;
+  background: linear-gradient(160deg, #ecc978, var(--gold-2)); color: #2a1a06; box-shadow: 0 10px 22px rgba(184,134,46,.35);
+}
+.dlg-ic svg { width: 100%; height: 100%; }
+.dlg-success .dlg-ic { background: linear-gradient(160deg, #6fae7a, #2e6b41); color: #fff; box-shadow: 0 10px 22px rgba(46,107,65,.35); }
+.dlg-danger .dlg-ic { background: linear-gradient(160deg, #e0766d, #b3261e); color: #fff; box-shadow: 0 10px 22px rgba(179,38,30,.3); }
+.dlg-title { font-size: 17px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+.dlg-msg { font-size: 13.5px; color: #4d4a3f; line-height: 1.55; margin-bottom: 20px; }
+.dlg-actions { display: flex; gap: 10px; }
+.dlg-actions button { flex: 1; height: 46px; border-radius: 15px; font-weight: 600; font-size: 14.5px; }
+.dlg-ok { background: linear-gradient(160deg, var(--green-3), var(--green)); color: var(--gold-soft); box-shadow: 0 8px 18px rgba(29,77,44,.3); }
+.dlg-danger .dlg-ok { background: linear-gradient(160deg, #c8473d, var(--red)); color: #fff; }
+.dlg-ghost { background: #f1ead2; color: var(--muted); }
+.dlg-ok:active, .dlg-ghost:active { transform: scale(.96); }
+
+/* ================= UTILITAS v3 ================= */
+.saldo-info {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; padding: 12px 14px; margin-bottom: 14px;
+  border-radius: 16px; background: #f1f7ec; border: 1px solid #cfe3c4; color: #1b5e20;
+}
+.saldo-info span { font-size: 13px; font-weight: 500; }
+.saldo-info b { font-size: 17px; font-weight: 700; }
+.saldo-info small { width: 100%; font-size: 11.5px; color: var(--muted); }
+.small-hero { padding: 16px 18px; }
+.small-hero .hero-val { font-size: 26px; }
+.sheet-switch { margin: 6px 0 14px; font-size: 14px; color: var(--ink); }
+.tap-row { cursor: pointer; }
+.tap-row:active td { background: #fff3cc; }
+.sheet-tbl { margin-top: 4px; }
+.sheet-tbl .tbl th, .sheet-tbl .tbl td { padding: 8px 6px; font-size: 12px; }
+.alert-item.tap { cursor: pointer; }
