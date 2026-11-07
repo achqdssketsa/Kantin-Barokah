@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isOwner() {
+      return signedIn() && myRole() == 'owner';
+    }
+
+    // Profil pengguna: user boleh baca profilnya sendiri, owner boleh kelola semua
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isOwner());
+      allow create, update, delete: if isOwner();
+    }
+
+    // Laporan tutup kasir: kasir boleh kirim, hanya owner yang boleh membaca/ubah
+    match /daily_closings/{id} {
+      allow create: if signedIn() && request.resource.data.submittedBy == request.auth.uid;
+      allow read, update, delete: if isOwner();
+    }
+  }
+}

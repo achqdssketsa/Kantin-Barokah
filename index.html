@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#4a3012">
+  <title>Canteen Daily Closing</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Image Compressor (compressorjs) -->
+  <script src="https://cdn.jsdelivr.net/npm/compressorjs@1.2.1/dist/compressor.min.js"></script>
+  <!-- Export Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Grafik -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Firebase (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <!-- ================= LOGIN ================= -->
+  <section id="viewLogin" class="screen">
+    <div class="login-card">
+      <div class="logo">
+        <div class="logo-grid">
+          <span class="g">🍴</span><span class="y">☕</span>
+          <span class="y">%</span><span class="g">💳</span>
+        </div>
+        <div class="logo-text">
+          <b>Canteen</b>
+          <small>Daily Closing App</small>
+        </div>
+      </div>
+
+      <h1 class="login-title">Login</h1>
+
+      <form id="formLogin" autocomplete="on">
+        <label for="loginUsername">Username</label>
+        <div class="input-wrap">
+          <span class="icon">👤</span>
+          <input type="text" id="loginUsername" autocomplete="username" autocapitalize="none" required>
+        </div>
+
+        <label for="loginPassword">Password</label>
+        <div class="input-wrap">
+          <span class="icon">🔒</span>
+          <input type="password" id="loginPassword" autocomplete="current-password" required>
+          <button type="button" id="togglePw" class="eye" aria-label="Tampilkan password">👁</button>
+        </div>
+
+        <p id="loginError" class="error"></p>
+        <button type="submit" id="btnLogin" class="btn-gold">Login</button>
+      </form>
+
+      <button type="button" id="btnForgot" class="link-btn">Forgot Password?</button>
+      <p class="login-footer">© 2024 Canteen Management Systems</p>
+    </div>
+  </section>
+
+  <!-- ================= APLIKASI ================= -->
+  <section id="viewApp" class="screen hidden">
+
+    <header class="topbar">
+      <div>
+        <p class="greet">Welcome, <strong id="greetName"></strong>!</p>
+        <h2 id="pageTitle">Dashboard</h2>
+      </div>
+      <button id="btnLogout" class="avatar" title="Keluar" aria-label="Keluar">👤</button>
+    </header>
+
+    <main class="content">
+
+      <!-- ===== DASHBOARD (OWNER) ===== -->
+      <div id="tab-dashboard" class="tab">
+        <div class="date-row">
+          <label for="dashDate">Tanggal</label>
+          <input type="date" id="dashDate">
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">Daily Summary</div>
+          <div class="panel-body">
+            <p class="muted">Total Revenue</p>
+            <p class="big" id="sumTotal">Rp 0</p>
+            <div class="split">
+              <div><p class="muted">Cash</p><p class="mid" id="sumCash">Rp 0</p></div>
+              <div><p class="muted">QRIS</p><p class="mid" id="sumQris">Rp 0</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat dark"><span class="stat-label">Penjualan Hari Ini</span><span class="stat-value" id="cardTodaySales">Rp 0</span></div>
+          <div class="stat gold"><span class="stat-label">Total Transaksi</span><span class="stat-value" id="cardTransactions">0</span></div>
+          <div class="stat gold"><span class="stat-label">Modal Kas Awal</span><span class="stat-value" id="cardOpening">Rp 0</span></div>
+          <div class="stat dark"><span class="stat-label">Uang Fisik di Laci</span><span class="stat-value" id="cardClosingCash">Rp 0</span></div>
+          <div class="stat dark"><span class="stat-label">Selisih Kas</span><span class="stat-value" id="cardDiscrepancy">Rp 0</span></div>
+          <div class="stat gold"><span class="stat-label">Total Pengeluaran</span><span class="stat-value" id="cardExpenditure">Rp 0</span></div>
+          <div class="stat gold"><span class="stat-label">Ambil Uang Owner</span><span class="stat-value" id="cardPrive">Rp 0</span></div>
+          <div class="stat dark"><span class="stat-label">Keuntungan Bersih</span><span class="stat-value" id="cardNet">Rp 0</span></div>
+        </div>
+
+        <h3 class="section-title">Reports</h3>
+
+        <div class="panel">
+          <div class="panel-title">Tren Penjualan (7 hari terakhir)</div>
+          <div class="chart-box"><canvas id="chartTrend"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Distribusi Pembayaran (7 hari)</div>
+          <div class="chart-box chart-donut"><canvas id="chartDist"></canvas></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Penjualan per Metode Bayar</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Metode</th><th class="r">Jumlah</th><th class="r">%</th></tr></thead>
+              <tbody id="payTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">Status Checklist Akhir Hari</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Kasir</th><th class="c">Hitung Laci</th><th class="c">Foto Nota</th><th class="c">Cek Stok</th></tr></thead>
+              <tbody id="checklistTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="list-head">
+          <h3 class="section-title">Riwayat Tutup Kasir</h3>
+          <button class="btn-export" id="btnExport">📥 Excel</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tanggal</th><th>Kasir</th><th>Tunai</th><th>QRIS</th><th>Total Masuk</th>
+                <th>Pengeluaran</th><th>Keuntungan</th><th>Status Kas</th><th>Bukti Nota</th><th>Catatan</th>
+              </tr>
+            </thead>
+            <tbody id="closingTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== TUTUP KASIR (SEMUA ROLE) ===== -->
+      <div id="tab-kasir" class="tab">
+        <form id="formClosing" class="panel form-panel" autocomplete="off">
+          <div class="panel-title-lg">Laporan Tutup Kasir Harian</div>
+
+          <div class="field">
+            <label for="closingDate">Tanggal Laporan</label>
+            <input type="date" id="closingDate" required>
+          </div>
+
+          <div class="field">
+            <label for="startingCash">Modal Kas Awal di Laci</label>
+            <input type="number" id="startingCash" min="0" inputmode="numeric" placeholder="Rp 0" required>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="cashRevenue">Uang Tunai (Cash)</label>
+              <input type="number" id="cashRevenue" min="0" inputmode="numeric" placeholder="Rp 0" required>
+            </div>
+            <div class="field">
+              <label for="qrisRevenue">QRIS / Transfer</label>
+              <input type="number" id="qrisRevenue" min="0" inputmode="numeric" placeholder="Rp 0" required>
+            </div>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="transactionCount">Jumlah Transaksi</label>
+              <input type="number" id="transactionCount" min="0" inputmode="numeric" value="0">
+            </div>
+            <div class="field">
+              <label for="priveAmount">Ambil Uang Owner</label>
+              <input type="number" id="priveAmount" min="0" inputmode="numeric" value="0">
+            </div>
+          </div>
+
+          <fieldset class="opex-box">
+            <legend>Pengeluaran Toko (Belanja Mendadak)</legend>
+            <div id="opexList"></div>
+            <button type="button" class="btn-outline" id="btnAddOpex">+ Tambah Item Belanja</button>
+          </fieldset>
+
+          <div class="summary-box">
+            Seharusnya Uang Tunai di Laci: <strong id="txtExpectedCash">Rp 0</strong>
+          </div>
+
+          <div class="field">
+            <label for="actualCash">Hitung Fisik Uang di Laci</label>
+            <input type="number" id="actualCash" min="0" inputmode="numeric" placeholder="Jumlah uang fisik" required>
+          </div>
+
+          <div id="statusKasBox" class="status-box">Status Kas: <span id="txtStatusKas">-</span></div>
+
+          <div class="checklist">
+            <p class="label-block">Checklist Akhir Hari</p>
+            <label><input type="checkbox" id="chkCounted"> Uang di laci sudah dihitung</label>
+            <label><input type="checkbox" id="chkPhotos"> Nota & bukti belanja sudah difoto</label>
+            <label><input type="checkbox" id="chkStock"> Stok dapur/kantin sudah dicek</label>
+          </div>
+
+          <div class="field">
+            <label for="proofImages">Foto Nota & Bukti Belanja</label>
+            <input type="file" id="proofImages" accept="image/*" multiple>
+            <small id="imageInfo" class="muted"></small>
+            <div id="imagePreviewContainer" class="preview-grid"></div>
+          </div>
+
+          <div class="field">
+            <label for="notes">Catatan / Alasan Jika Ada Selisih</label>
+            <textarea id="notes" rows="3" placeholder="Contoh: beli es batu 2x karena cuaca panas"></textarea>
+          </div>
+
+          <button type="submit" id="btnSubmit" class="btn-primary">Simpan & Kirim Laporan</button>
+        </form>
+      </div>
+
+      <!-- ===== PENGGUNA (OWNER) ===== -->
+      <div id="tab-users" class="tab">
+        <form id="formAddUser" class="panel form-panel" autocomplete="off">
+          <div class="panel-title-lg">Tambah Akun Baru</div>
+          <div class="row2">
+            <div class="field">
+              <label for="newUsername">Username</label>
+              <input type="text" id="newUsername" placeholder="contoh: budi" autocapitalize="none" required>
+            </div>
+            <div class="field">
+              <label for="newName">Nama Lengkap</label>
+              <input type="text" id="newName" required>
+            </div>
+          </div>
+          <div class="row2">
+            <div class="field">
+              <label for="newPassword">Password (min. 6)</label>
+              <input type="password" id="newPassword" minlength="6" autocomplete="new-password" required>
+            </div>
+            <div class="field">
+              <label for="newRole">Role</label>
+              <select id="newRole">
+                <option value="kasir">Kasir / Anggota</option>
+                <option value="owner">Owner</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" id="btnAddUser" class="btn-primary">Buat Akun</button>
+        </form>
+
+        <h3 class="section-title">Daftar Pengguna</h3>
+        <div id="userList"></div>
+      </div>
+
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn owner-only" data-tab="dashboard"><span>🏠</span><small>Dashboard</small></button>
+      <button class="nav-btn" data-tab="kasir"><span>🧾</span><small>Tutup Kasir</small></button>
+      <button class="nav-btn owner-only" data-tab="users"><span>👥</span><small>Pengguna</small></button>
+    </nav>
+  </section>
+
+  <!-- Modal zoom foto nota -->
+  <div id="imageModal" class="modal">
+    <span class="close-modal" id="closeModal">&times;</span>
+    <img id="imgFull" alt="Foto nota">
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
