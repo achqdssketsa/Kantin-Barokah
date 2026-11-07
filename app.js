@@ -33,7 +33,11 @@ const todayStr = () => toISODate(new Date());
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtSize = (b) => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
-const usernameToEmail = (u) => `${u.trim().toLowerCase()}@kantin.app`;
+// Terima username (akan ditambah @kantin.app) atau email lengkap (dipakai apa adanya)
+const usernameToEmail = (u) => {
+  const v = u.trim().toLowerCase();
+  return v.includes('@') ? v : `${v}@kantin.app`;
+};
 const lastDates = (end, n) => {
   const base = new Date(end + 'T00:00:00');
   return Array.from({ length: n }, (_, i) => {
