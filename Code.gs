@@ -16,7 +16,7 @@ const MAX_BASE64_LENGTH = 6 * 1024 * 1024; // ±4,5 MB foto
 
 // Cek cepat bahwa URL aktif
 function doGet() {
-  return jsonOut_({ ok: true, service: 'Kantin Barokah Drive Upload' });
+  return jsonOut_({ ok: true, version: 2, service: 'Kantin Barokah Drive Upload' });
 }
 
 function doPost(e) {
