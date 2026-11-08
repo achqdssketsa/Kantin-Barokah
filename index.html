@@ -165,13 +165,10 @@
           </div>
 
           <div class="panel pad">
-            <div class="sec-hd"><span data-i="scale"></span><h4>Pindah uang antar kantong</h4></div>
-            <div class="row2">
-              <div class="field"><label for="ambilLaci">Laci → kasir</label>
-                <div class="money"><span>Rp</span><input type="number" id="ambilLaci" inputmode="numeric" min="0" value="0"></div></div>
-              <div class="field"><label for="setorKasir">Kasir → laci</label>
-                <div class="money"><span>Rp</span><input type="number" id="setorKasir" inputmode="numeric" min="0" value="0"></div></div>
-            </div>
+            <div class="sec-hd"><span data-i="scale"></span><h4>Ambil dari laci</h4></div>
+            <div class="field" style="margin:0"><label for="ambilLaci">Laci → kasir (hanya jika kasir kekurangan uang)</label>
+              <div class="money"><span>Rp</span><input type="number" id="ambilLaci" inputmode="numeric" min="0" value="0"></div></div>
+            <p class="hint">Setoran sisa penjualan ke laci dihitung otomatis. Tidak perlu diisi.</p>
           </div>
 
           <div class="panel pad">
@@ -184,9 +181,9 @@
           <div class="panel pad">
             <div class="sec-hd"><span data-i="cash"></span><h4>Hitung uang fisik</h4></div>
             <div class="row2">
-              <div class="field"><label for="actualLaci">Uang di laci</label>
+              <div class="field"><label for="actualLaci">Uang di laci (setelah setoran masuk)</label>
                 <div class="money big-money"><span>Rp</span><input type="number" id="actualLaci" inputmode="numeric" min="0" placeholder="0" required></div></div>
-              <div class="field"><label for="actualKasir">Uang di kasir</label>
+              <div class="field"><label for="actualKasir">Uang di kasir (sebelum setoran)</label>
                 <div class="money big-money"><span>Rp</span><input type="number" id="actualKasir" inputmode="numeric" min="0" placeholder="0" required></div></div>
             </div>
           </div>

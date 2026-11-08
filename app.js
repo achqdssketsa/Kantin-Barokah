@@ -18,7 +18,7 @@ const TS = () => firebase.firestore.FieldValue.serverTimestamp();
 const APP_VERSION = '4.0.0';
 const C = {
   closings: 'daily_closings', users: 'users', withdrawals: 'owner_withdrawals',
-  opname: 'opname', kas: 'kas', products: 'products', audit: 'audit'
+  opname: 'opname', kas: 'kas', settings: 'settings', products: 'products', audit: 'audit'
 };
 
 // Penyimpanan foto: 'drive' (Google Drive lewat Apps Script) atau 'firestore'
@@ -30,6 +30,7 @@ const MAX_B64 = 900000;
 
 // Toleransi selisih: nilai yang lebih besar antara Rp10.000 atau 1% omset
 const TOL_ABS = 10000, TOL_REL = 0.01;
+const MODAL_DEFAULT = 100000;   // modal kasir tetap, bisa diubah owner
 
 const GREEN = '#1d4d2c', GOLD = '#c9963e';
 const PALETTE = ['#1d4d2c', '#c9963e', '#4f8a63', '#e3c57a', '#8c5a2b', '#2f6b4f'];
@@ -334,6 +335,7 @@ document.querySelectorAll('.seg-btn').forEach((b) => b.addEventListener('click',
 let unsubs = [];
 let allClosings = [], withdrawals = [], opnames = [], allUsers = [], products = [], auditLogs = [];
 let kasSaldo = null;
+let modalKasir = MODAL_DEFAULT;
 let days = [], periods = [];
 
 function startListeners() {
@@ -341,6 +343,10 @@ function startListeners() {
   unsubs.push(db.collection(C.kas).doc('saldo').onSnapshot((s) => {
     kasSaldo = s.exists ? s.data() : null;
     renderSaldoInfo();
+  }));
+  unsubs.push(db.collection(C.settings).doc('kas').onSnapshot((s) => {
+    modalKasir = s.exists && s.data().modalKasir != null ? num(s.data().modalKasir) : MODAL_DEFAULT;
+    if (profile) renderSettings();
   }));
   unsubs.push(db.collection(C.products).orderBy('name').onSnapshot((s) => {
     products = s.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -397,16 +403,15 @@ function computeDays(closings, withdrawalsList) {
   const wd = {};
   withdrawalsList.forEach((w) => {
     const sign = w.type === 'setor' ? -1 : 1;
-    const k = w.pocket === 'kasir' ? 'kasir' : 'laci';
-    wd[w.date] = wd[w.date] || { laci: 0, kasir: 0 };
-    wd[w.date][k] += sign * num(w.amount);
+    wd[w.date] = wd[w.date] || { laci: 0 };
+    wd[w.date].laci += sign * num(w.amount);      // pengambilan owner selalu dari laci
   });
 
   const out = [];
   let prev = null;
   sortAsc(closings).forEach((c) => {
-    const legacy = c.actualLaci === undefined;   // laporan v1–v3: hanya satu kantong
-    const w = wd[c.date] || { laci: 0, kasir: 0 };
+    const legacy = c.actualLaci === undefined;
+    const w = wd[c.date] || { laci: 0 };
     const cash = num(c.cashRevenue), qris = num(c.qrisRevenue);
     const gross = num(c.grossRevenue) || cash + qris;
     const opex = c.opex || [];
@@ -417,28 +422,34 @@ function computeDays(closings, withdrawalsList) {
 
     const startLaci = prev?.laci ?? num(c.startLaci ?? c.startingCash);
     const startKasir = prev?.kasir ?? num(c.startKasir);
-    const ambil = num(c.ambilLaci), setor = num(c.setorKasir);
+    const ambil = num(c.ambilLaci);
 
-    const physLaci = legacy ? num(c.actualCash) : num(c.actualLaci);
-    const physKasir = legacy ? null : num(c.actualKasir);
+    // Kasir seharusnya sebelum setoran (dari data tercatat)
+    const kasirSebelum = startKasir + ambil + cash - opexKasir;
+    // Setoran otomatis ke laci = kasir seharusnya − modal tetap
+    const modal = num(c.modalKasir ?? MODAL_DEFAULT);
+    const setor = legacy ? 0 : (c.setorKasir != null ? num(c.setorKasir) : kasirSebelum - modal);
+
+    const physLaci = legacy ? num(c.actualCash) : num(c.actualLaci);   // dihitung setelah setoran masuk
+    const physKasirBefore = legacy ? null : num(c.actualKasir);        // dihitung sebelum setoran
 
     const laciExp = legacy
-      ? startLaci + cash - opexLaci - w.laci                      // lama: semua penjualan masuk laci
+      ? startLaci + cash - opexLaci - w.laci
       : startLaci - ambil + setor - opexLaci - w.laci;
-    const kasirExp = legacy ? null : startKasir + ambil - setor + cash - opexKasir - w.kasir;
+    const diffKasir = legacy ? 0 : physKasirBefore - kasirSebelum;
+    const kasirAfter = legacy ? null : physKasirBefore - setor;        // saldo kasir yang dibawa ke besok
 
     out.push({
       c, legacy, gross, cash, qris, opexBiaya, opexStok, opexLaci, opexKasir,
-      opexTotal: opexBiaya + opexStok, startLaci, startKasir,
-      laciExp, kasirExp, physLaci, physKasir,
-      diffLaci: physLaci - laciExp,
-      diffKasir: legacy ? 0 : physKasir - kasirExp,
-      ambil, setor, wLaci: w.laci, wKasir: w.kasir
+      opexTotal: opexBiaya + opexStok, startLaci, startKasir, ambil, setor,
+      laciExp, kasirExp: kasirSebelum, physLaci, physKasir: physKasirBefore, kasirAfter,
+      diffLaci: physLaci - laciExp, diffKasir, modal
     });
-    prev = { laci: physLaci, kasir: physKasir };
+    prev = { laci: physLaci, kasir: kasirAfter };
   });
   return out;
 }
+
 
 // Rekonsiliasi antara dua opname berurutan (A → B), per produk
 function computePeriods(opnameList, dayList, withdrawalsList) {
@@ -781,15 +792,19 @@ function readOpexRows() {
 function readClosingForm() {
   const { rows } = readOpexRows();
   const cashRevenue = num($('cashRevenue').value), qrisRevenue = num($('qrisRevenue').value);
-  const ambilLaci = num($('ambilLaci').value), setorKasir = num($('setorKasir').value);
+  const ambilLaci = num($('ambilLaci').value);
   const k = kasSaldo && kasSaldo.kasir !== undefined;
   const startLaci = k ? num(kasSaldo.laci) : num($('startLaci').value);
   const startKasir = k ? num(kasSaldo.kasir) : num($('startKasir').value);
+  const opexKasir = sumBy(rows.filter((o) => o.pocket === 'kasir'), (o) => o.amount);
+  const kasirSebelum = startKasir + ambilLaci + cashRevenue - opexKasir;
+  const setorKasir = kasirSebelum - modalKasir;      // otomatis, tidak ditampilkan ke kasir
   return {
     date: todayStr(),
     startLaci, startKasir,
     cashRevenue, qrisRevenue, grossRevenue: cashRevenue + qrisRevenue,
-    ambilLaci, setorKasir,
+    ambilLaci,
+    setorKasir, kasirSebelum, modalKasir,
     opex: rows,
     opexBiaya: sumBy(rows.filter((o) => o.kind !== 'stok'), (o) => o.amount),
     opexStok: sumBy(rows.filter((o) => o.kind === 'stok'), (o) => o.amount),
@@ -799,6 +814,7 @@ function readClosingForm() {
     notes: $('notes').value.trim()
   };
 }
+
 
 function setBusy(on, text = 'Kirim tutup kasir') {
   const b = $('btnSubmit');
@@ -851,7 +867,7 @@ $('formClosing').addEventListener('submit', async (e) => {
       createdAt: TS()
     });
     batch.set(db.collection(C.kas).doc('saldo'), {
-      laci: data.actualLaci, kasir: data.actualKasir, date: data.date, by: profile.name
+      laci: data.actualLaci, kasir: data.actualKasir - data.setorKasir, date: data.date, by: profile.name
     });
     await batch.commit();
     saved = true;
@@ -1022,8 +1038,6 @@ $('btnAddWithdraw').addEventListener('click', () => {
     <div class="row2">
       <div class="field"><label for="wdType">Jenis</label>
         <select id="wdType"><option value="ambil">Ambil</option><option value="setor">Setor</option></select></div>
-      <div class="field"><label for="wdPocket">Dari</label>
-        <select id="wdPocket"><option value="laci">Laci</option><option value="kasir">Kasir</option></select></div>
     </div>
     <div class="row2">
       <div class="field"><label for="wdDate">Tanggal</label><input type="date" id="wdDate" value="${todayStr()}"></div>
@@ -1037,7 +1051,7 @@ $('btnAddWithdraw').addEventListener('click', () => {
       if (amount <= 0) return toast('Isi jumlah');
       try {
         const data = {
-          type: $('wdType').value, pocket: $('wdPocket').value, date: $('wdDate').value, amount,
+          type: $('wdType').value, pocket: 'laci', date: $('wdDate').value, amount,
           note: $('wdNote').value.trim(), by: profile.name, createdAt: TS()
         };
         await db.collection(C.withdrawals).add(data);
@@ -1097,7 +1111,7 @@ function openClosingDetail(id) {
     <div class="sum-block">
       <div class="line"><span>Saldo awal laci</span><b>${rp(d.startLaci)}</b></div>
       <div class="line"><span>− Ke kasir</span><b>${rp(d.ambil)}</b></div>
-      <div class="line"><span>+ Dari kasir</span><b>${rp(d.setor)}</b></div>
+      <div class="line"><span>+ Setoran dari kasir (otomatis)</span><b>${rp(d.setor)}</b></div>
       <div class="line"><span>− Biaya &amp; belanja dari laci</span><b>${rp(d.opexLaci)}</b></div>
       <div class="line"><span>Seharusnya di laci</span><b>${rp(d.laciExp)}</b></div>
       <div class="line"><span>Uang fisik di laci</span><b>${rp(d.physLaci)}</b></div>
@@ -1109,10 +1123,11 @@ function openClosingDetail(id) {
       <div class="line"><span>Saldo awal kasir</span><b>${rp(d.startKasir)}</b></div>
       <div class="line"><span>+ Dari laci</span><b>${rp(d.ambil)}</b></div>
       <div class="line"><span>+ Tunai hari ini</span><b>${rp(d.cash)}</b></div>
-      <div class="line"><span>− Setor ke laci</span><b>${rp(d.setor)}</b></div>
       <div class="line"><span>− Biaya &amp; belanja dari kasir</span><b>${rp(d.opexKasir)}</b></div>
-      <div class="line"><span>Seharusnya di kasir</span><b>${rp(d.kasirExp)}</b></div>
-      <div class="line"><span>Uang fisik di kasir</span><b>${rp(d.physKasir)}</b></div>
+      <div class="line"><span>Seharusnya di kasir (sebelum setoran)</span><b>${rp(d.kasirExp)}</b></div>
+      <div class="line"><span>Uang fisik di kasir (sebelum setoran)</span><b>${rp(d.physKasir)}</b></div>
+      <div class="line"><span>Setoran ke laci (otomatis)</span><b>${rp(d.setor)}</b></div>
+      <div class="line"><span>Modal kasir yang dibawa besok</span><b>${rp(d.kasirAfter)}</b></div>
       <div class="line total"><span>Selisih kasir</span><b class="${d.diffKasir === 0 ? 'ok' : d.diffKasir < 0 ? 'no' : 'warn'}">${signedRp(d.diffKasir)}</b></div>
     </div>`}
 
@@ -1160,8 +1175,8 @@ function openEditClosing(id) {
     </div>
     <div class="row2">
       <div class="field"><label for="eAmbil">Laci → kasir</label><div class="money"><span>Rp</span><input type="number" id="eAmbil" inputmode="numeric" value="${num(c.ambilLaci)}"></div></div>
-      <div class="field"><label for="eSetor">Kasir → laci</label><div class="money"><span>Rp</span><input type="number" id="eSetor" inputmode="numeric" value="${num(c.setorKasir)}"></div></div>
     </div>
+    <p class="hint">Setoran ke laci dihitung ulang otomatis dari penjualan dan belanja.</p>
     <div class="field"><label for="eNotes">Catatan</label><textarea id="eNotes" rows="2">${esc(c.notes || '')}</textarea></div>
     <div class="field"><label for="eReason">Alasan perubahan (wajib)</label><input type="text" id="eReason" placeholder="mis. salah input tunai, sudah dicek ulang"></div>
     <button class="btn-primary" id="eSave">${ic('check')}Simpan perubahan</button>
@@ -1173,21 +1188,32 @@ function openEditClosing(id) {
       const next = {
         cashRevenue: num($('eCash').value), qrisRevenue: num($('eQris').value),
         actualLaci: num($('eLaci').value), actualKasir: num($('eKasir').value),
-        ambilLaci: num($('eAmbil').value), setorKasir: num($('eSetor').value),
+        ambilLaci: num($('eAmbil').value),
         notes: $('eNotes').value.trim()
       };
       next.grossRevenue = next.cashRevenue + next.qrisRevenue;
+      const kasirSebelum = num(c.startKasir) + next.ambilLaci + next.cashRevenue
+        - sumBy((c.opex || []).filter((o) => pocketOf(o) === 'kasir'), (o) => num(o.amount));
+      next.setorKasir = kasirSebelum - num(c.modalKasir ?? MODAL_DEFAULT);
       const before = {
         cashRevenue: num(c.cashRevenue), qrisRevenue: num(c.qrisRevenue),
         actualLaci: num(c.actualLaci ?? c.actualCash), actualKasir: num(c.actualKasir),
-        ambilLaci: num(c.ambilLaci), setorKasir: num(c.setorKasir)
+        ambilLaci: num(c.ambilLaci)
       };
       const changes = Object.keys(before)
         .filter((k) => before[k] !== next[k])
         .map((k) => `${k} ${before[k]} → ${next[k]}`).join('; ');
       if (!changes && next.notes === (c.notes || '')) return toast('Tidak ada perubahan');
       try {
-        await db.collection(C.closings).doc(c.id).update({ ...next, editedBy: profile.name, editedAt: TS() });
+        const batch = db.batch();
+        batch.update(db.collection(C.closings).doc(c.id), { ...next, editedBy: profile.name, editedAt: TS() });
+        const latest = allClosings.reduce((m, x) => (x.date > m ? x.date : m), '');
+        if (c.date === latest) {
+          batch.set(db.collection(C.kas).doc('saldo'), {
+            laci: next.actualLaci, kasir: next.actualKasir - next.setorKasir, date: c.date, by: profile.name
+          });
+        }
+        await batch.commit();
         await logAudit('laporan_diedit', c.date, `${changes || 'catatan'} · alasan: ${reason}`);
         closeSheet();
         toast('Laporan diperbarui dan dicatat');
@@ -1373,6 +1399,7 @@ function renderSettings() {
   const items = [
     ['editProfile', 'user', 'Edit profil', 'Nama dan foto akun', false],
     ['password', 'key', 'Ganti password', 'Ubah kata sandi akun', false],
+    ['modal', 'wallet', 'Modal kasir tetap', `Saat ini Rp ${Math.round(modalKasir).toLocaleString('id-ID')}`, true],
     ['users', 'users', 'Kelola pengguna', 'Tambah akun & atur role', true],
     ['log', 'log', 'Log aktivitas', 'Riwayat perubahan (hanya dibaca)', true],
     ['exportXlsx', 'chart', 'Export laporan (Excel)', 'Sesuai periode di Beranda', true],
@@ -1395,6 +1422,7 @@ $('settingsMenu').addEventListener('click', async (e) => {
     editProfile: openEditProfile,
     password: openPasswordSheet,
     users: openUsersSheet,
+    modal: openModalSheet,
     log: openAuditSheet,
     exportXlsx: exportWorkbook,
     backup: backupAll,
@@ -1404,6 +1432,28 @@ $('settingsMenu').addEventListener('click', async (e) => {
   try { await actions[b.dataset.act](); }
   catch (err) { fail(err.message); }
 });
+
+function openModalSheet() {
+  openSheet(`
+    <h3 class="sheet-title">Modal kasir tetap</h3>
+    <p class="hint">Jumlah uang yang selalu tinggal di kasir untuk besok. Sisanya otomatis disetor ke laci setiap tutup kasir. Perubahan berlaku mulai laporan berikutnya.</p>
+    <div class="field"><label for="mdAmount">Modal kasir (Rp)</label><div class="money"><span>Rp</span><input type="number" id="mdAmount" inputmode="numeric" min="0" value="${modalKasir}"></div></div>
+    <button class="btn-primary" id="mdSave">${ic('check')}Simpan modal</button>
+    <button class="btn-ghost" data-close>Batal</button>
+  `, () => {
+    $('mdSave').onclick = async () => {
+      const v = num($('mdAmount').value);
+      if (v <= 0) return toast('Modal harus lebih dari 0');
+      const old = modalKasir;
+      try {
+        await db.collection(C.settings).doc('kas').set({ modalKasir: v, by: profile.name, updatedAt: TS() }, { merge: true });
+        await logAudit('modal_kasir_diubah', 'modal kasir', `${rp(old)} → ${rp(v)}`);
+        closeSheet();
+        toast('Modal kasir diperbarui');
+      } catch (err) { fail(err.message); }
+    };
+  });
+}
 
 function openAuditSheet() {
   const rows = auditLogs.map((a) => {
@@ -1598,8 +1648,9 @@ async function exportWorkbook() {
     'Tanggal': d.c.date, 'Kasir': d.c.kasirName,
     'Tunai': d.cash, 'QRIS': d.qris, 'Omset': d.gross,
     'Belanja Barang': d.opexStok, 'Biaya Operasional': d.opexBiaya,
+    'Setoran Otomatis ke Laci': d.setor,
     'Laci: Seharusnya': d.laciExp, 'Laci: Fisik': d.physLaci, 'Selisih Laci': d.diffLaci,
-    'Kasir: Seharusnya': d.kasirExp ?? '', 'Kasir: Fisik': d.physKasir ?? '', 'Selisih Kasir': d.diffKasir,
+    'Kasir: Seharusnya (sebelum setoran)': d.kasirExp, 'Kasir: Fisik (sebelum setoran)': d.physKasir ?? '', 'Selisih Kasir': d.diffKasir,
     'Catatan': d.c.notes || ''
   }));
   const rekon = perR.map((p) => ({

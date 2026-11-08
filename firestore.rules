@@ -23,6 +23,12 @@ service cloud.firestore {
       );
     }
 
+    // Pengaturan: modal kasir tetap (dibaca semua, diubah owner)
+    match /settings/{id} {
+      allow read: if signedIn();
+      allow write: if isOwner();
+    }
+
     // Saldo laci & kasir terakhir (info untuk kasir)
     match /kas/{id} {
       allow read, write: if signedIn();

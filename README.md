@@ -155,3 +155,14 @@ Aplikasi menghitung per produk: terjual = awal + masuk − akhir, lalu dibanding
 ## Catatan
 - Opname dari versi sebelumnya (v3) tidak dipakai untuk perhitungan per produk. Mulailah dengan opname rinci pertama.
 - Daftar produk di database bisa dibaca oleh semua akun yang login, termasuk HPP. Tampilan aplikasi kasir tidak menampilkan HPP, tetapi data tetap bisa dibaca lewat alat pengembang. Jika ingin HPP benar-benar tersembunyi dari kasir, kami bisa memindahkannya ke koleksi khusus owner.
+
+---
+
+# Pembaruan v4.1: modal kasir tetap dan setoran otomatis
+
+- **Modal kasir tetap** (default Rp100.000) diatur owner di **Pengaturan → Modal kasir tetap**. Perubahan berlaku mulai laporan berikutnya.
+- **Setoran ke laci dihitung otomatis** = saldo kasir seharusnya − modal tetap. Dihitung dari data yang tercatat, sehingga kasir tidak melihat atau mengubah angka setorannya.
+- **Saldo awal besok:** laci = uang fisik laci hari ini; kasir = uang fisik kasir sebelum setoran − setoran.
+- Kasir hanya mengisi penjualan, belanja, uang fisik laci (setelah setoran masuk), uang fisik kasir (sebelum setoran), dan "Laci → kasir" bila kasir kekurangan uang.
+- Pengambilan owner selalu dicatat dari **laci**.
+- Selisih kasir hari itu tetap ditampilkan. Karena saldo besok dihitung dari fisik kasir, kekurangan tidak berulang setiap hari.
