@@ -1396,7 +1396,9 @@ function renderSettings() {
     <div class="pc-main"><strong>${esc(profile.name)}</strong><small>@${esc(profile.username)}</small></div>
     <span class="role-pill">${profile.role === 'owner' ? 'Owner' : 'Kasir'}</span>`;
   const owner = profile.role === 'owner';
+  const showInstall = !isStandalone() && (deferredPrompt || isIOS());
   const items = [
+    ...(showInstall ? [['install', 'download', 'Pasang aplikasi', 'Tambahkan ke layar utama', false]] : []),
     ['editProfile', 'user', 'Edit profil', 'Nama dan foto akun', false],
     ['password', 'key', 'Ganti password', 'Ubah kata sandi akun', false],
     ['modal', 'wallet', 'Modal kasir tetap', `Saat ini Rp ${Math.round(modalKasir).toLocaleString('id-ID')}`, true],
@@ -1419,6 +1421,7 @@ $('settingsMenu').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const actions = {
+    install: installApp,
     editProfile: openEditProfile,
     password: openPasswordSheet,
     users: openUsersSheet,
@@ -1467,6 +1470,40 @@ function openAuditSheet() {
     <div class="sum-block">${rows || '<p class="muted">Belum ada aktivitas.</p>'}</div>
     <button class="btn-ghost" data-close>Tutup</button>
   `);
+}
+
+// ============================================================
+// PASANG APLIKASI (PWA)
+// ============================================================
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (profile) renderSettings();
+});
+window.addEventListener('appinstalled', () => {
+  deferredPrompt = null;
+  if (profile) renderSettings();
+  toast('Aplikasi berhasil dipasang');
+});
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+async function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    renderSettings();
+    return;
+  }
+  if (isIOS()) {
+    return openSheet(`
+      <h3 class="sheet-title">Pasang di iPhone</h3>
+      <p class="hint">Buka halaman ini di Safari, ketuk tombol Bagikan, lalu pilih <b>Tambah ke Layar Utama</b>.</p>
+      <button class="btn-ghost" data-close>Tutup</button>`);
+  }
+  await notify('Buka menu browser (⋮) lalu pilih "Instal aplikasi" atau "Tambahkan ke layar utama".', 'Pasang aplikasi');
 }
 
 let pendingAvatar = null;
